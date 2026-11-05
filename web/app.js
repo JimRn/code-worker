@@ -31,7 +31,9 @@ function renderEvent(ev) {
   else if (ev.type === "assistant/message") {
     div.className = "msg assistant";
     div.innerHTML = esc(ev.data.text || "(tool call)") +
-      (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${t.name}(${JSON.stringify(t.args)})`).join("<br>")}</div>` : "");
+      (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${t.name}(${JSON.stringify(t.args)})`).join("<br>")}</div>` : "") +
+      (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
+    if (ev.data.usage) updateUsage();
   } else if (ev.type === "tool/result") { div.className = "msg tool"; div.textContent = `→ ${ev.data.name}: ${ev.data.output}`; }
   else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
@@ -39,6 +41,12 @@ function renderEvent(ev) {
   else return; // turn/step markers are structural, not rendered
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
+}
+
+async function updateUsage() {
+  if (!currentId) return;
+  const s = await (await fetch(api(`/sessions/${currentId}`))).json();
+  $("#usage-info").textContent = s.usage?.total ? `用量 ${s.usage.total} tokens（${s.usage.prompt}↑/${s.usage.completion}↓）` : "";
 }
 
 function openStream(id) {

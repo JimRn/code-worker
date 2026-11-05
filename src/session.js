@@ -61,6 +61,17 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
+  /** Sum of token usage across assistant messages (provider-reported). */
+  usageTotals() {
+    let prompt = 0, completion = 0;
+    for (const ev of this.events) {
+      if (ev.type === "assistant/message" && ev.data.usage) {
+        prompt += ev.data.usage.prompt_tokens ?? 0;
+        completion += ev.data.usage.completion_tokens ?? 0;
+      }
+    }
+    return { prompt, completion, total: prompt + completion };
+  }
   /** Latest generated title, or null. */
   title() {
     for (let i = this.events.length - 1; i >= 0; i--) {

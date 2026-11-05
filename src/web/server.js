@@ -103,7 +103,7 @@ export function createWebServer({ ctx, store, approval, token }) {
       if (m) {
         const session = store.open(m[1]);
         if (!m[2] && req.method === "GET") {
-          return sendJson(res, 200, { id: session.id, events: session.events, messages: session.deriveMessages() });
+          return sendJson(res, 200, { id: session.id, title: session.title(), usage: session.usageTotals(), events: session.events, messages: session.deriveMessages() });
         }
         if (m[3] === "stream" && req.method === "GET") {
           // SSE: replay history then stream session/event live.
