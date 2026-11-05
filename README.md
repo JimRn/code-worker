@@ -18,7 +18,7 @@
 ## 运行
 
 ```sh
-cp .env.example .env   # 填 DEEPSEEK_API_KEY（DeepSeek 官方 API）
+cp .env.example .env   # 填 OPENAI_API_KEY（任意 OpenAI-compatible 端点）
 node src/cli.js --yes "帮我看看这个目录里有什么文件"
 node src/cli.js --repl           # 交互循环，/exit 退出
 node src/cli.js --session <id> "继续上次任务"
@@ -33,7 +33,7 @@ npm test   # node --test，覆盖 waterfall/可逆 effect/端到端日志/confin
 
 ## 配置
 
-环境变量见 `.env.example`：`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL`、`CW_WORKSPACE`、`CW_AUTO_APPROVE`。CLI 参数：`--mock`（离线）、`--yes`（批准 write/bash）、`--workspace <dir>`、`--session <id>`、`--repl`。
+环境变量见 `.env.example`：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`（`DEEPSEEK_*` 作 fallback）、`CW_WORKSPACE`、`CW_AUTO_APPROVE`。CLI 参数：`--mock`（离线）、`--yes`（批准 write/bash）、`--workspace <dir>`、`--session <id>`、`--repl`、`--base-url <url>`、`--model <name>`、`--api-key <key>`。
 
 ## 扩展（按蓝图）
 

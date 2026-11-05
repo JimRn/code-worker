@@ -59,4 +59,4 @@ Web/Host：经 `ctx.agents` 驱动、`session/event` 渲染；Chat 节点注册 
 - 包：`packages/<group>/<pkg>/`，`src/types.ts` 纯类型，测试 `tests/`，README 含 Model Experience 与 Known Limitations。
 - 配置：`cordis.yml` 行经 patch 层可替换；`!!js` 仅限 plugin `config` 与 entry `disabled`。
 - 启动：`dsh --profile web|headless|sdk|sdk-minimal|acp`，查看树 `dsh --profile web --dump-config`。
-- 密钥：真实 API 读 `DEEPSEEK_API_KEY`（根 `.env`），永不提交凭据；CI 无 key 自跳过 e2e。
+- 密钥：真实 API 读 `OPENAI_API_KEY`（`DEEPSEEK_*` fallback）（根 `.env`），永不提交凭据；CI 无 key 自跳过 e2e。

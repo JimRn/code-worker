@@ -20,12 +20,16 @@ if (existsSync(join(root, ".env"))) {
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
-const task = args.filter((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--profile" && args[args.indexOf(a) - 1] !== "--workspace" && args[args.indexOf(a) - 1] !== "--session").join(" ");
+const VALUE_FLAGS = ["--profile", "--workspace", "--session", "--base-url", "--model", "--api-key"];
+const task = args.filter((a) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[args.indexOf(a) - 1])).join(" ");
 
 const { ctx, store, dispose } = await bootProfile(join(root, "profiles", "personal.json"), {
   workspace: val("--workspace") ?? process.env.CW_WORKSPACE,
   autoApprove: has("--yes") || process.env.CW_AUTO_APPROVE === "true",
   mock: has("--mock"),
+  baseUrl: val("--base-url"),
+  model: val("--model"),
+  apiKey: val("--api-key"),
 });
 const loop = ctx.require("agentLoop");
 const session = val("--session") ? store.open(val("--session")) : store.create();
@@ -51,7 +55,7 @@ try {
   } else if (task) {
     await runOnce(task);
   } else {
-    console.log("Usage:\n  node src/cli.js --mock --yes \"list files in workspace\"\n  node src/cli.js --yes \"task...\"\n  node src/cli.js --repl [--mock] [--yes]\n  node src/cli.js --session <id> \"continue...\"");
+    console.log("Usage:\n  node src/cli.js --mock --yes \"list files in workspace\"\n  node src/cli.js --yes \"task...\"   # OpenAI-compatible endpoint via OPENAI_* env/.env\n  node src/cli.js --yes --base-url https://api.deepseek.com --model deepseek-chat \"task...\"\n  node src/cli.js --repl [--mock] [--yes]\n  node src/cli.js --session <id> \"continue...\"");
   }
 } finally {
   await dispose();

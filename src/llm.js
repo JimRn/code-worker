@@ -7,17 +7,21 @@ export class LlmService {
     return () => this.adapters.delete(name);
   }
   /** Bind an adapter before any system/user commit (cancellation there commits nothing). */
-  prepareCall({ provider = "deepseek", model, messages, tools = [] }) {
+  prepareCall({ provider = "openai-compatible", model, messages, tools = [] }) {
     const adapter = this.adapters.get(provider);
     if (!adapter) throw new Error(`Unknown LLM provider: ${provider}`);
     return adapter.prepareCall({ model, messages, tools });
   }
 }
 
-/** OpenAI-compatible chat completions (DeepSeek). Wire boundary: validate response here. */
-export class DeepSeekAdapter {
-  constructor({ apiKey, baseUrl = "https://api.deepseek.com", model = "deepseek-chat" } = {}) {
-    if (!apiKey) throw new Error("DEEPSEEK_API_KEY is required (set env or .env; see .env.example)");
+/**
+ * OpenAI-compatible chat completions provider (works with OpenAI, DeepSeek,
+ * and any OpenAI-compatible endpoint). Wire boundary: validate response here.
+ * Env: OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL (DEEPSEEK_* kept as fallback).
+ */
+export class OpenAICompatibleAdapter {
+  constructor({ apiKey, baseUrl = "https://api.openai.com/v1", model = "gpt-4o-mini" } = {}) {
+    if (!apiKey) throw new Error("OPENAI_API_KEY is required (set env or .env; see .env.example)");
     this.apiKey = apiKey; this.baseUrl = baseUrl.replace(/\/$/, ""); this.model = model;
   }
   prepareCall({ model, messages, tools }) {
@@ -39,6 +43,9 @@ export class DeepSeekAdapter {
     };
   }
 }
+
+/** Backward-compat alias: DeepSeek is just an OpenAI-compatible endpoint. */
+export class DeepSeekAdapter extends OpenAICompatibleAdapter {}
 
 /** Offline keyless provider for tests/demo: first step lists dir if asked, else echoes. */
 export class MockAdapter {

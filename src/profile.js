@@ -6,7 +6,7 @@ import { SessionStore } from "./session.js";
 import { ToolRegistry, installApprovalGuard } from "./tools.js";
 import { LocalFs, registerFsTools } from "./fs.js";
 import { LocalShell, registerBashTool } from "./shell.js";
-import { LlmService, DeepSeekAdapter, MockAdapter } from "./llm.js";
+import { LlmService, OpenAICompatibleAdapter, MockAdapter } from "./llm.js";
 import { AgentLoop } from "./agent-loop.js";
 
 export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl } = {}) {
@@ -28,14 +28,16 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   // llm seam (ctx.llm)
   const llm = new LlmService();
   ctx.provide("llm", llm);
-  if (mock) ctx.effect(() => llm.registerAdapter("deepseek", new MockAdapter()));
-  else ctx.effect(() => llm.registerAdapter("deepseek", new DeepSeekAdapter({
-    apiKey: apiKey ?? process.env.DEEPSEEK_API_KEY,
-    baseUrl: baseUrl ?? process.env.DEEPSEEK_BASE_URL,
-    model: model ?? process.env.DEEPSEEK_MODEL,
+  // OpenAI-compatible endpoint; DEEPSEEK_* env vars remain as fallback.
+  const resolvedModel = model ?? process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL;
+  if (mock) ctx.effect(() => llm.registerAdapter("openai-compatible", new MockAdapter()));
+  else ctx.effect(() => llm.registerAdapter("openai-compatible", new OpenAICompatibleAdapter({
+    apiKey: apiKey ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY,
+    baseUrl: baseUrl ?? process.env.OPENAI_BASE_URL ?? process.env.DEEPSEEK_BASE_URL,
+    model: resolvedModel,
   })));
   // agent-loop (ctx.agentLoop)
-  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "deepseek", model: model ?? process.env.DEEPSEEK_MODEL }));
+  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", model: resolvedModel }));
   // guard-approval
   installApprovalGuard(ctx, { autoApprove });
 
