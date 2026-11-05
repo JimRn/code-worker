@@ -64,3 +64,16 @@ node src/cli.js --web --port 3000               # 真实 OpenAI-compatible 端�
 ```
 
 审批切换：Web 的 approve 开关与 CLI 的 `--yes` 共享同一可变 approval ref，`tools/pre-execute` 每次执行前读取。
+
+### 局域网访问
+
+默认绑定 `0.0.0.0`（所有网卡），启动时打印本机 + 局域网地址（如 `http://192.168.x.x:3000`），同网段设备浏览器直连即可：
+
+```sh
+node src/cli.js --web --port 3000                 # 局域网可达（可信内网）
+node src/cli.js --web --token mysecret            # 推荐：开启 token 鉴权
+node src/cli.js --web --host 127.0.0.1            # 仅本机
+```
+
+- Token：`--token` 或环境变量 `CW_TOKEN`；带 token 的访问 URL 形如 `http://192.168.x.x:3000/?token=mysecret`，浏览器会存入 localStorage，后续 API 请求自动携带（`?token=` / `x-cw-token` / `Authorization: Bearer` 三选一）。未带 token 请求 `/api/*` 返回 401。
+- 注意：服务直接暴露文件读写/命令执行能力（受审批开关控制），仅在可信局域网使用；不要做端口转发到公网。防火墙需放行对应端口（如 `ufw allow 3000`）。

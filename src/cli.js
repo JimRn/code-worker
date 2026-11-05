@@ -20,7 +20,7 @@ if (existsSync(join(root, ".env"))) {
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
-const VALUE_FLAGS = ["--profile", "--workspace", "--session", "--base-url", "--model", "--api-key"];
+const VALUE_FLAGS = ["--profile", "--workspace", "--session", "--base-url", "--model", "--api-key", "--port", "--host", "--token"];
 const task = args.filter((a) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[args.indexOf(a) - 1])).join(" ");
 
 // Web mode shares a mutable approval ref with the approval guard (approve toggle).
@@ -35,10 +35,14 @@ const { ctx, store, dispose } = await bootProfile(join(root, "profiles", "person
 });
 
 if (has("--web")) {
-  const { startWebServer } = await import("./web/server.js");
+  const { startWebServer, lanAddresses } = await import("./web/server.js");
   const port = Number(val("--port") ?? 3000);
-  const server = await startWebServer({ ctx, store, approval }, port);
-  console.error(`[code-worker] web: http://localhost:${server.address().port} (model=${process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? "default"})`);
+  const host = val("--host") ?? "0.0.0.0"; // all interfaces => LAN reachable
+  const token = val("--token") ?? process.env.CW_TOKEN;
+  const server = await startWebServer({ ctx, store, approval, token }, { port, host });
+  const bound = server.address().port;
+  console.error(`[code-worker] web (model=${process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? "default"}${token ? ", token auth ON" : ", no token (LAN trusted only)"}):`);
+  for (const addr of ["localhost", ...lanAddresses()]) console.error(`  http://${addr}:${bound}${token ? "/?token=" + token : ""}`);
   await new Promise(() => {}); // serve until killed
 }
 const loop = ctx.require("agentLoop");

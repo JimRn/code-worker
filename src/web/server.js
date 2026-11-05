@@ -5,6 +5,16 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { networkInterfaces } from "node:os";
+
+/** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
+export function lanAddresses() {
+  const out = [];
+  for (const list of Object.values(networkInterfaces())) {
+    for (const i of list ?? []) if (i.family === "IPv4" && !i.internal) out.push(i.address);
+  }
+  return out;
+}
 
 const webDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "web");
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
@@ -13,7 +23,7 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
  * @param {{ctx: import('../context.js').Context, store: import('../session.js').SessionStore, approval: {current:boolean}}} deps
  * @returns {import('node:http').Server}
  */
-export function createWebServer({ ctx, store, approval }) {
+export function createWebServer({ ctx, store, approval, token }) {
   const loop = ctx.require("agentLoop");
   const running = new Set(); // sessionIds with an in-flight turn
 
@@ -27,15 +37,24 @@ export function createWebServer({ ctx, store, approval }) {
     req.on("end", () => { try { resolve(b ? JSON.parse(b) : {}); } catch { reject(new Error("invalid JSON body")); } });
   });
 
+  // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
+  const authorized = (req, url) =>
+    !token || req.headers["x-cw-token"] === token ||
+    req.headers.authorization === `Bearer ${token}` || url.searchParams.get("token") === token;
+
   return createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     try {
+      if (url.pathname.startsWith("/api/") && !authorized(req, url)) {
+        res.writeHead(401, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: "unauthorized: token required (?token= / x-cw-token / Bearer)" }));
+      }
       // --- static client (Host serves frontend-static) ---
       if (req.method === "GET" && (url.pathname === "/" || /\.(html|js|css)$/.test(url.pathname))) {
         const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
         const full = join(webDir, file);
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
-        res.writeHead(200, { "content-type": MIME[url.pathname.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
+        res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
       }
       // --- session RPC ---
@@ -80,8 +99,8 @@ export function createWebServer({ ctx, store, approval }) {
   });
 }
 
-/** Start listening; resolves with the bound address. */
-export function startWebServer(deps, port = 3000) {
+/** Start listening on all interfaces (LAN reachable); resolves with the bound address. */
+export function startWebServer(deps, { port = 3000, host = "0.0.0.0" } = {}) {
   const server = createWebServer(deps);
-  return new Promise((resolve) => server.listen(port, () => resolve(server)));
+  return new Promise((resolve) => server.listen(port, host, () => resolve(server)));
 }

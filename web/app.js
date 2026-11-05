@@ -3,6 +3,10 @@
 const $ = (s) => document.querySelector(s);
 let currentId = null;
 let stream = null;
+// LAN token: ?token= in URL is persisted to localStorage and appended to API calls.
+const TOKEN = new URLSearchParams(location.search).get("token") ?? localStorage.getItem("cw-token") ?? "";
+if (TOKEN) localStorage.setItem("cw-token", TOKEN);
+const api = (path) => `/api${path}${TOKEN ? `${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(TOKEN)}` : ""}`;
 
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
@@ -25,12 +29,12 @@ function renderEvent(ev) {
 function openStream(id) {
   stream?.close();
   $("#messages").innerHTML = "";
-  stream = new EventSource(`/api/sessions/${id}/stream`);
+  stream = new EventSource(api(`/sessions/${id}/stream`));
   stream.onmessage = (e) => renderEvent(JSON.parse(e.data));
 }
 
 async function refreshSessions() {
-  const { sessions } = await (await fetch("/api/sessions")).json();
+  const { sessions } = await (await fetch(api("/sessions"))).json();
   $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${s.id}" class="${s.id === currentId ? "active" : ""}">${s.id}</li>`).join("");
   document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
 }
@@ -42,7 +46,7 @@ async function selectSession(id) {
 }
 
 $("#new-session").onclick = async () => {
-  const { id } = await (await fetch("/api/sessions", { method: "POST" })).json();
+  const { id } = await (await fetch(api("/sessions"), { method: "POST" })).json();
   selectSession(id);
 };
 
@@ -52,7 +56,7 @@ $("#composer").onsubmit = async (e) => {
   if (!text || !currentId) return;
   $("#input").value = "";
   $("#status").textContent = "运行中…";
-  await fetch(`/api/sessions/${currentId}/turn`, {
+  await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ text, autoApprove: $("#approve").checked }),

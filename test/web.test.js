@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bootProfile } from "../src/profile.js";
-import { startWebServer } from "../src/web/server.js";
+import { startWebServer, lanAddresses } from "../src/web/server.js";
 
 test("web: static + session RPC + turn over SSE", async () => {
   const ws = mkdtempSync(join(tmpdir(), "cw-web-ws-"));
@@ -28,6 +28,24 @@ test("web: static + session RPC + turn over SSE", async () => {
       }
       await new Promise((r) => setTimeout(r, 50));
     }
+  } finally {
+    server.close();
+    await dispose();
+  }
+});
+
+test("web LAN: token auth gates /api; lanAddresses lists non-internal IPv4", async () => {
+  assert.ok(Array.isArray(lanAddresses()));
+  const ws = mkdtempSync(join(tmpdir(), "cw-web-lan-"));
+  const approval = { current: true };
+  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true });
+  const server = await startWebServer({ ctx, store, approval, token: "s3cret" }, { port: 0, host: "127.0.0.1" });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    assert.equal((await fetch(`${base}/api/sessions`)).status, 401);
+    assert.equal((await fetch(`${base}/api/sessions?token=s3cret`)).status, 200);
+    assert.equal((await fetch(`${base}/api/sessions`, { headers: { authorization: "Bearer s3cret" } })).status, 200);
+    assert.equal((await fetch(`${base}/api/sessions?token=wrong`)).status, 401);
   } finally {
     server.close();
     await dispose();
