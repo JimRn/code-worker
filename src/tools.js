@@ -44,12 +44,28 @@ export class ToolRegistry {
   }
 }
 
-/** Approval guard: write/bash need auto-approve or --yes; enforced in tools/pre-execute (executor, not schema). */
+/**
+ * Approval guard: write/bash need approval; enforced in tools/pre-execute (executor, not schema).
+ * autoApprove ref: {current:boolean, mode:"auto"|"per-call", pending:Map, notify?}
+ * In per-call mode the executor suspends until the Web UI decides (see server /api/approvals).
+ */
 export function installApprovalGuard(ctx, { autoApprove }) {
   const guarded = new Set(["write_file", "bash"]);
+  const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
+  ref.pending ??= new Map();
   return ctx.on("tools/pre-execute", async (req, next) => {
-    const approved = typeof autoApprove === "object" ? autoApprove.current : autoApprove;
-    if (guarded.has(req.name) && !approved) req.denied = `${req.name} requires approval (--yes / CW_AUTO_APPROVE=true / Web approve toggle)`;
+    if (!guarded.has(req.name)) return next(req);
+    if (ref.current) return next(req); // auto-approved
+    if (ref.mode === "per-call") {
+      const decision = await new Promise((resolve) => {
+        ref.pending.set(req.callId, { resolve, req });
+        ref.notify?.({ callId: req.callId, name: req.name, args: req.args });
+      });
+      ref.pending.delete(req.callId);
+      if (!decision) req.denied = `${req.name} denied by user`;
+      return next(req);
+    }
+    req.denied = `${req.name} requires approval (--yes / CW_AUTO_APPROVE=true / Web approve toggle)`;
     return next(req);
   }, "waterfall");
 }

@@ -28,6 +28,12 @@ export function createWebServer({ ctx, store, approval, token }) {
   const settings = ctx.get("settings");
   const modelConfig = ctx.get("modelConfig");
   const running = new Set(); // sessionIds with an in-flight turn
+  const sseClients = new Set(); // all connected streams (for approval broadcast)
+  // Per-call approval: guard suspends; we fan the request out to every browser.
+  approval.notify = ({ callId, name, args }) => {
+    const frame = `data: ${JSON.stringify({ live: true, type: "approval/request", data: { callId, name, args } })}\n\n`;
+    for (const res of sseClients) res.write(frame);
+  };
 
   const sendJson = (res, code, obj) => {
     res.writeHead(code, { "content-type": "application/json" });
@@ -58,6 +64,14 @@ export function createWebServer({ ctx, store, approval, token }) {
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
+      }
+      // --- per-call approvals ---
+      if (url.pathname === "/api/approvals" && req.method === "POST") {
+        const body = await readBody(req);
+        const entry = approval.pending?.get(body.callId);
+        if (!entry) return sendJson(res, 404, { error: "no pending approval" });
+        entry.resolve(Boolean(body.approved));
+        return sendJson(res, 200, { ok: true });
       }
       // --- settings (redacted; API key write-only, never returned) ---
       if (url.pathname === "/api/settings" && req.method === "GET") {
@@ -110,7 +124,8 @@ export function createWebServer({ ctx, store, approval, token }) {
           res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
           for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
           const off = session.subscribe((ev) => res.write(`data: ${JSON.stringify(ev)}\n\n`));
-          req.on("close", off);
+          sseClients.add(res);
+          req.on("close", () => { off(); sseClients.delete(res); });
           return;
         }
         if (m[3] === "compact" && req.method === "POST") {
@@ -126,6 +141,7 @@ export function createWebServer({ ctx, store, approval, token }) {
           if (!body.text) return sendJson(res, 400, { error: "text is required" });
           if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
           approval.current = Boolean(body.autoApprove);
+          if (body.approvalMode) approval.mode = body.approvalMode;
           running.add(session.id);
           sendJson(res, 202, { accepted: true });
           loop.runTurn(session, body.text, { model: body.model }).catch((e) => console.error("[web] turn failed:", e.message)).finally(() => running.delete(session.id));

@@ -12,6 +12,20 @@ const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">":
 
 function renderEvent(ev) {
   const box = $("#messages");
+  // Per-call approval request (live-only).
+  if (ev.type === "approval/request") {
+    const card = document.createElement("div");
+    card.className = "msg approval";
+    card.innerHTML = `⚠ 审批：<b>${esc(ev.data.name)}</b>(${esc(JSON.stringify(ev.data.args))}) ` +
+      `<button data-ok="1">批准</button> <button data-ok="0">拒绝</button>`;
+    card.querySelectorAll("button").forEach((b) => (b.onclick = async () => {
+      await fetch(api("/approvals"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId: ev.data.callId, approved: b.dataset.ok === "1" }) });
+      card.remove();
+    }));
+    box.appendChild(card);
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
   // Live stream chunk: append to the streaming bubble (removed when the durable message lands).
   if (ev.type === "assistant/chunk") {
     let bubble = document.getElementById("streaming");
@@ -82,7 +96,7 @@ $("#composer").onsubmit = async (e) => {
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, autoApprove: $("#approve").checked, model: $("#model-picker").value || undefined }),
+    body: JSON.stringify({ text, autoApprove: $("#approve").checked, approvalMode: $("#per-call").checked ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
   });
   $("#status").textContent = "";
 };
