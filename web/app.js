@@ -12,6 +12,20 @@ const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">":
 
 function renderEvent(ev) {
   const box = $("#messages");
+  // Live stream chunk: append to the streaming bubble (removed when the durable message lands).
+  if (ev.type === "assistant/chunk") {
+    let bubble = document.getElementById("streaming");
+    if (!bubble) {
+      bubble = document.createElement("div");
+      bubble.id = "streaming";
+      bubble.className = "msg assistant streaming";
+      box.appendChild(bubble);
+    }
+    bubble.textContent += ev.data.delta;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+  document.getElementById("streaming")?.remove();
   const div = document.createElement("div");
   if (ev.type === "user/message") { div.className = "msg user"; div.textContent = ev.data.text; }
   else if (ev.type === "assistant/message") {
@@ -20,6 +34,7 @@ function renderEvent(ev) {
       (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${t.name}(${JSON.stringify(t.args)})`).join("<br>")}</div>` : "");
   } else if (ev.type === "tool/result") { div.className = "msg tool"; div.textContent = `→ ${ev.data.name}: ${ev.data.output}`; }
   else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
+  else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
   else if (ev.type === "assistant/attempt") { div.className = "msg tool"; div.textContent = `⚠ ${ev.data.error}`; }
   else return; // turn/step markers are structural, not rendered
   box.appendChild(div);

@@ -61,7 +61,12 @@ try {
       const t = line.trim();
       if (!t) { rl.prompt(); continue; }
       if (t === "/exit" || t === "/quit") break;
-      if (t.startsWith("/")) { console.log("commands: /exit"); rl.prompt(); continue; }
+      if (t === "/compact") {
+        const text = await loop.compact(session).catch((e) => { console.log(`compact failed: ${e.message}`); return null; });
+        console.log(text ? `compacted: ${text.slice(0, 120)}…` : "nothing to compact");
+        rl.prompt(); continue;
+      }
+      if (t.startsWith("/")) { console.log("commands: /exit /compact"); rl.prompt(); continue; }
       await runOnce(t);
       rl.prompt();
     }

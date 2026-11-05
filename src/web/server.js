@@ -89,14 +89,17 @@ export function createWebServer({ ctx, store, approval, token }) {
       // --- session RPC ---
       if (url.pathname === "/api/sessions" && req.method === "GET") {
         const { readdirSync } = await import("node:fs");
-        const ids = existsSync(store.homeDir) ? readdirSync(store.homeDir) : [];
+        const { statSync } = await import("node:fs");
+        const ids = existsSync(store.homeDir)
+          ? readdirSync(store.homeDir).filter((id) => { try { return statSync(join(store.homeDir, id)).isDirectory(); } catch { return false; } })
+          : [];
         return sendJson(res, 200, { sessions: ids.map((id) => ({ id })) });
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const s = store.create();
         return sendJson(res, 201, { id: s.id });
       }
-      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(events|stream|turn))?$/);
+      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(events|stream|turn|compact))?$/);
       if (m) {
         const session = store.open(m[1]);
         if (!m[2] && req.method === "GET") {
@@ -109,6 +112,14 @@ export function createWebServer({ ctx, store, approval, token }) {
           const off = session.subscribe((ev) => res.write(`data: ${JSON.stringify(ev)}\n\n`));
           req.on("close", off);
           return;
+        }
+        if (m[3] === "compact" && req.method === "POST") {
+          try {
+            const text = await loop.compact(session);
+            return sendJson(res, 200, { compacted: Boolean(text), summary: text ?? undefined });
+          } catch (err) {
+            return sendJson(res, 500, { error: err.message });
+          }
         }
         if (m[3] === "turn" && req.method === "POST") {
           const body = await readBody(req);

@@ -17,6 +17,11 @@
   "config": {
     "workspace": ".",
     "maxSteps": 8,
-    "toolResultMaxBytes": 20000
+    "toolResultMaxBytes": 20000,
+    "compaction": {
+      "maxContextChars": 60000,
+      "pruneBytes": 2000,
+      "keepRecent": 4
+    }
   }
 }

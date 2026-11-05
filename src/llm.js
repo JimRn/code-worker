@@ -35,23 +35,53 @@ export class OpenAICompatibleAdapter {
     if (!apiKey) throw new Error("OPENAI_API_KEY is required (configure in Web settings or env/.env; see .env.example)");
     return { apiKey, baseUrl: (c.baseUrl ?? this.defaults.baseUrl).replace(/\/$/, ""), model: c.model ?? this.defaults.model };
   }
+  /**
+   * Bound call = async generator (one provider attempt, always ends with finish):
+   * yields {type:"text", delta} chunks, then {type:"finish", text, toolCalls}.
+   */
   prepareCall({ model, messages, tools }) {
     const { apiKey, baseUrl, model: cfgModel } = this.resolve();
     const m = model ?? cfgModel;
-    return async () => {
+    return async function* () {
       const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: m, messages, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
+        body: JSON.stringify({ model: m, messages, stream: true, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
       });
       if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
-      const json = await res.json();
-      const msg = json.choices?.[0]?.message;
-      if (!msg) throw new Error("LLM response missing choices[0].message");
-      return {
-        text: msg.content ?? "",
-        toolCalls: (msg.tool_calls ?? []).map((tc) => ({ id: tc.id, name: tc.function.name, args: JSON.parse(tc.function.arguments || "{}") })),
-      };
+      let text = "";
+      const tcByIndex = new Map();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for await (const chunk of res.body) {
+        buffer += decoder.decode(chunk, { stream: true });
+        let nl;
+        while ((nl = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line || !line.startsWith("data:")) continue;
+          const data = line.slice(5).trim();
+          if (data === "[DONE]") break;
+          let json;
+          try { json = JSON.parse(data); } catch { continue; }
+          const delta = json.choices?.[0]?.delta;
+          if (!delta) continue;
+          if (delta.content) { text += delta.content; yield { type: "text", delta: delta.content }; }
+          for (const tc of delta.tool_calls ?? []) {
+            const cur = tcByIndex.get(tc.index) ?? { id: "", name: "", arguments: "" };
+            if (tc.id) cur.id = tc.id;
+            if (tc.function?.name) cur.name = tc.function.name;
+            if (tc.function?.arguments) cur.arguments += tc.function.arguments;
+            tcByIndex.set(tc.index, cur);
+          }
+        }
+      }
+      const toolCalls = [...tcByIndex.values()].filter((t) => t.name).map((t) => {
+        let args;
+        try { args = JSON.parse(t.arguments || "{}"); } catch { throw new Error(`invalid tool arguments JSON: ${t.arguments}`); }
+        return { id: t.id, name: t.name, args };
+      });
+      yield { type: "finish", text, toolCalls };
     };
   }
 }
@@ -59,20 +89,24 @@ export class OpenAICompatibleAdapter {
 /** Backward-compat alias: DeepSeek is just an OpenAI-compatible endpoint. */
 export class DeepSeekAdapter extends OpenAICompatibleAdapter {}
 
-/** Offline keyless provider for tests/demo: first step lists dir if asked, else echoes. */
+/** Offline keyless provider for tests/demo: first step lists dir if asked, else echoes. Streams like a real adapter. */
 export class MockAdapter {
   prepareCall({ messages }) {
-    return async () => {
-      const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-      const hasToolResult = messages.some((m) => m.role === "tool");
-      if (hasToolResult) {
-        const toolMsg = [...messages].reverse().find((m) => m.role === "tool")?.content ?? "";
-        return { text: `Done. Tool output:\n${toolMsg}`, toolCalls: [] };
-      }
-      if (/list|ls|文件|目录/i.test(lastUser)) {
-        return { text: "", toolCalls: [{ id: "mock-1", name: "list_dir", args: { path: "." } }] };
-      }
-      return { text: `[mock] You said: ${lastUser}`, toolCalls: [] };
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const hasToolResult = messages.some((m) => m.role === "tool");
+    let text, toolCalls = [];
+    if (hasToolResult) {
+      const toolMsg = [...messages].reverse().find((m) => m.role === "tool")?.content ?? "";
+      text = `Done. Tool output:\n${toolMsg}`;
+    } else if (/list|ls|文件|目录/i.test(lastUser)) {
+      text = "";
+      toolCalls = [{ id: "mock-1", name: "list_dir", args: { path: "." } }];
+    } else {
+      text = `[mock] You said: ${lastUser}`;
+    }
+    return async function* () {
+      for (let i = 0; i < text.length; i += 8) yield { type: "text", delta: text.slice(i, i + 8) };
+      yield { type: "finish", text, toolCalls };
     };
   }
 }

@@ -42,7 +42,7 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   if (mock) ctx.effect(() => llm.registerAdapter("openai-compatible", new MockAdapter()));
   else ctx.effect(() => llm.registerAdapter("openai-compatible", new OpenAICompatibleAdapter({ config: modelConfig })));
   // agent-loop (ctx.agentLoop) — model resolved per turn from modelConfig.
-  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", config: modelConfig }));
+  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", config: modelConfig, compaction: cfg.compaction }));
   // guard-approval (autoApprove may be boolean or a mutable {current} ref, e.g. Web toggle)
   installApprovalGuard(ctx, { autoApprove });
 

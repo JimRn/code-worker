@@ -77,3 +77,10 @@ node src/cli.js --web --host 127.0.0.1            # 仅本机
 
 - Token：`--token` 或环境变量 `CW_TOKEN`；带 token 的访问 URL 形如 `http://192.168.x.x:3000/?token=mysecret`，浏览器会存入 localStorage，后续 API 请求自动携带（`?token=` / `x-cw-token` / `Authorization: Bearer` 三选一）。未带 token 请求 `/api/*` 返回 401。
 - 注意：服务直接暴露文件读写/命令执行能力（受审批开关控制），仅在可信局域网使用；不要做端口转发到公网。防火墙需放行对应端口（如 `ufw allow 3000`）。
+
+## 上下文管理（compaction）
+
+照 DeepSeek `compaction-tool-result-pruner` + `compaction-basic`：
+- **Prune**（每步自动、无模型成本）：超过 `compaction.pruneBytes` 的旧工具结果截断为头尾 + `[pruned]`，保留最近 `keepRecent` 条原文。
+- **Summarize**：估算上下文（字符数）超过 `compaction.maxContextChars`（默认 60000）时，把旧轮次用 LLM 摘要成一条耐久 `compaction/summary` 事件；`deriveMessages()` 投影只保留摘要 + 其后事件（摘要本身已落日志，满足 model-visible ⟺ logged）。
+- 手动触发：Web `POST /api/sessions/:id/compact`，或 REPL 输入 `/compact`。

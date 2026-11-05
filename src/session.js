@@ -10,17 +10,24 @@ export class SessionStore {
   constructor(homeDir) {
     this.homeDir = homeDir;
     mkdirSync(homeDir, { recursive: true });
+    this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
   }
   create() {
     const id = randomUUID().slice(0, 8);
     const dir = join(this.homeDir, id);
     mkdirSync(dir, { recursive: true });
-    return new Session(this, id, dir);
+    const s = new Session(this, id, dir);
+    this.cache.set(id, s);
+    return s;
   }
   open(id) {
+    const cached = this.cache.get(id);
+    if (cached) return cached;
     const dir = join(this.homeDir, id);
     if (!existsSync(dir)) throw new Error(`Session not found: ${id}`);
-    return new Session(this, id, dir);
+    const s = new Session(this, id, dir);
+    this.cache.set(id, s);
+    return s;
   }
 }
 
@@ -33,6 +40,12 @@ export class Session {
       this.events = readFileSync(this.file, "utf8").split("\n").filter(Boolean)
         .map((l) => JSON.parse(l));
     }
+  }
+  /** Live-only frame (e.g. assistant stream chunk): broadcast, never persisted/replayed. */
+  broadcastLive(type, data = {}) {
+    const ev = { live: true, ts: Date.now(), type, data };
+    for (const fn of this.onAppend ?? []) fn(ev);
+    return ev;
   }
   /** Subscribe to session/event (live broadcast, e.g. SSE). Returns unsubscriber. */
   subscribe(fn) {
@@ -48,15 +61,24 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
-  /** Project model history from the log. */
+  /** Project model history from the log. After a compaction/summary, only the
+   *  summary + later events are model-visible (the summary is itself logged). */
   deriveMessages() {
     const msgs = [];
+    let compacted = false;
     for (const ev of this.events) {
+      if (ev.type === "compaction/summary") {
+        msgs.length = 0; // drop pre-summary history from the projection
+        msgs.push({ role: "system", content: `[Earlier conversation summarized]\n${ev.data.text}` });
+        compacted = true;
+        continue;
+      }
       if (ev.type === "system/message") msgs.push({ role: "system", content: ev.data.text });
       else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });
       else if (ev.type === "assistant/message") msgs.push({ role: "assistant", content: ev.data.text, tool_calls: ev.data.toolCalls ?? undefined });
       else if (ev.type === "tool/result") msgs.push({ role: "tool", tool_call_id: ev.data.callId, content: ev.data.output });
     }
+    void compacted;
     return msgs;
   }
 }
