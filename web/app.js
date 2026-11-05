@@ -67,7 +67,14 @@ function openStream(id) {
   stream?.close();
   $("#messages").innerHTML = "";
   stream = new EventSource(api(`/sessions/${id}/stream`));
-  stream.onmessage = (e) => renderEvent(JSON.parse(e.data));
+  stream.onopen = () => { $("#conn").textContent = "● 已连接"; $("#conn").style.color = "#3fb950"; };
+  stream.onerror = () => { $("#conn").textContent = "○ 连接中断，重试中…"; $("#conn").style.color = "#d29922"; };
+  stream.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === "turn/start") $("#status").textContent = "运行中…";
+    if (ev.type === "turn/end") $("#status").textContent = "";
+    renderEvent(ev);
+  };
 }
 
 async function refreshSessions() {
