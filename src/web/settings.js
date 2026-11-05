@@ -47,6 +47,13 @@ export class SettingsStore {
     }
     return this.describe();
   }
+  getWorkspace() { return readJson(this.settingsFile, {}).workspace; }
+  setWorkspace(path) {
+    const s = readJson(this.settingsFile, {});
+    s.workspace = path;
+    atomicWrite(this.settingsFile, s);
+    return path;
+  }
   /** Server-side only: real key for the wire. Never exposed via API. */
   getApiKey() { return readJson(this.credsFile, {}).apiKey; }
   getConfig() {

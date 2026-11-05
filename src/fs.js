@@ -20,6 +20,9 @@ export class LocalFs extends FsService {
   async readFile(p) { return readFileSync(this.resolve(p), "utf8"); }
   async writeFile(p, content) { const f = this.resolve(p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, content); return `wrote ${p}`; }
   async listDir(p = ".") { return readdirSync(this.resolve(p)).join("\n") || "(empty)"; }
+  async listEntries(p = ".") {
+    return readdirSync(this.resolve(p), { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() }));
+  }
 }
 
 /** Consumer: model-facing tools registered on ctx.tools. */

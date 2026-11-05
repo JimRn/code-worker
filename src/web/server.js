@@ -65,6 +65,31 @@ export function createWebServer({ ctx, store, approval, token }) {
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
       }
+      // --- workspace: list + switch (fs seam root moves; tools follow) ---
+      if (url.pathname === "/api/workspace" && req.method === "GET") {
+        const fs = ctx.require("fs");
+        const sub = url.searchParams.get("path") || ".";
+        try {
+          const entries = await fs.listEntries(sub);
+          return sendJson(res, 200, { root: fs.root, path: sub, entries });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
+      if (url.pathname === "/api/workspace" && req.method === "PUT") {
+        const body = await readBody(req);
+        if (!body.path) return sendJson(res, 400, { error: "path is required" });
+        const fs = ctx.require("fs");
+        const shell = ctx.require("shell");
+        const { resolve, sep } = await import("node:path");
+        const abs = resolve(body.path);
+        const { statSync } = await import("node:fs");
+        if (!existsSync(abs) || !statSync(abs).isDirectory()) return sendJson(res, 400, { error: "not a directory" });
+        fs.root = abs;
+        shell.workspace = abs;
+        settings.setWorkspace(abs);
+        return sendJson(res, 200, { root: abs });
+      }
       // --- per-call approvals ---
       if (url.pathname === "/api/approvals" && req.method === "POST") {
         const body = await readBody(req);

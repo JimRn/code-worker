@@ -145,7 +145,24 @@ $("#test-settings").onclick = async () => {
   $("#settings-status").textContent = r.ok ? `连接正常${r.models?.length ? `，可用模型 ${r.models.length}+` : ""}` : `失败：${r.error || r.status}`;
 };
 
+// --- Workspace browser ---
+let wsPath = ".";
+async function refreshWorkspace() {
+  const r = await (await fetch(api(`/workspace?path=${encodeURIComponent(wsPath)}`))).json();
+  $("#ws-root").textContent = r.root || "";
+  $("#ws-list").innerHTML =
+    (wsPath !== "." ? `<li data-up="1">📁 ..</li>` : "") +
+    (r.entries ?? []).map((e) => `<li data-name="${esc(e.name)}" class="${e.dir ? "dir" : ""}">${e.dir ? "📁" : "📄"} ${esc(e.name)}</li>`).join("");
+  document.querySelectorAll("#ws-list li").forEach((li) => (li.onclick = () => {
+    if (li.dataset.up) wsPath = wsPath.split("/").slice(0, -1).join("/") || ".";
+    else if (li.classList.contains("dir")) wsPath = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;
+    else return;
+    refreshWorkspace();
+  }));
+}
+
 loadSettings?.();
+refreshWorkspace();
 refreshSessions().then(async () => {
   const first = document.querySelector("#session-list li");
   if (first) selectSession(first.dataset.id);
