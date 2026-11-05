@@ -1,0 +1,19 @@
+{
+  "name": "code-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal DeepSeek Harness (mini Cordis) built from docs/harness-*.md",
+  "bin": {
+    "code-worker": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "demo": "node src/cli.js --mock --yes \"list files in workspace\"",
+    "test": "node --test test/harness.test.js",
+    "check": "node --check src/cli.js && node --check src/context.js && node --check src/session.js && node --check src/tools.js && node --check src/llm.js && node --check src/agent-loop.js && node --check src/fs.js && node --check src/shell.js && node --check src/profile.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

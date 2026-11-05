@@ -1,0 +1,22 @@
+{
+  "name": "personal",
+  "description": "Personal profile: single bundle = fs + shell + tools + llm(deepseek|mock) + agent-loop",
+  "home": ".code-worker",
+  "plugins": [
+    "session",
+    "system-prompt",
+    "tools",
+    "fs-local",
+    "tool-fs",
+    "shell-local",
+    "tool-bash",
+    "llm-deepseek",
+    "agent-loop",
+    "guard-approval"
+  ],
+  "config": {
+    "workspace": ".",
+    "maxSteps": 8,
+    "toolResultMaxBytes": 20000
+  }
+}
