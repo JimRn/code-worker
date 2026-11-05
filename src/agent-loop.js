@@ -46,7 +46,7 @@ export class AgentLoop {
         await session.append("step/end", { step, error: err.message });
         break;
       }
-      await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls });
+      await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined });
       if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
       for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
       const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes });

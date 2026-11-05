@@ -42,13 +42,30 @@ export class OpenAICompatibleAdapter {
   prepareCall({ model, messages, tools }) {
     const { apiKey, baseUrl, model: cfgModel } = this.resolve();
     const m = model ?? cfgModel;
+    const maxRetries = Number(this.config?.maxRetries ?? process.env.CW_LLM_RETRIES ?? 2);
     return async function* () {
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: m, messages, stream: true, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
-      });
+      // Retry policy (429/5xx/network) BEFORE the stream starts; once chunks
+      // flow, the attempt is committed and failures surface as attempt errors.
+      let res;
+      const retryable = (status) => status === 429 || status >= 500;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          res = await fetch(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
+          });
+        } catch (err) {
+          if (attempt >= maxRetries) throw err;
+          await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
+          continue;
+        }
+        if (res.ok || !retryable(res.status) || attempt >= maxRetries) break;
+        await res.text().catch(() => {}); // drain before retry
+        await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
+      }
       if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+      let usage = null;
       let text = "";
       const tcByIndex = new Map();
       const decoder = new TextDecoder();
@@ -64,6 +81,7 @@ export class OpenAICompatibleAdapter {
           if (data === "[DONE]") break;
           let json;
           try { json = JSON.parse(data); } catch { continue; }
+          if (json.usage) usage = json.usage;
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
           if (delta.content) { text += delta.content; yield { type: "text", delta: delta.content }; }
@@ -81,7 +99,7 @@ export class OpenAICompatibleAdapter {
         try { args = JSON.parse(t.arguments || "{}"); } catch { throw new Error(`invalid tool arguments JSON: ${t.arguments}`); }
         return { id: t.id, name: t.name, args };
       });
-      yield { type: "finish", text, toolCalls };
+      yield { type: "finish", text, toolCalls, usage };
     };
   }
 }
