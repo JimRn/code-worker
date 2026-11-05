@@ -52,10 +52,9 @@ export class Context {
     const list = [...(this.listeners.get(event) ?? [])].filter((l) => l.mode === "waterfall");
     const run = async (i, v) => {
       if (i >= list.length) return v;
-      let delegated = false;
-      const next = async (nv = v) => { delegated = true; return run(i + 1, nv); };
-      const out = await list[i].fn(v, next);
-      return delegated ? out : out; // non-delegated return = short-circuit value
+      const next = async (nv = v) => run(i + 1, nv);
+      // Not calling next() short-circuits: the returned value becomes the final result.
+      return list[i].fn(v, next);
     };
     return run(0, value);
   }

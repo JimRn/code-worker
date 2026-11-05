@@ -17,7 +17,9 @@ export class AgentLoop {
     await session.append("turn/start", {});
     await session.append("user/message", { text: userText });
     const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
-    await session.append("system/message", { text: systemText });
+    // Dedup: only log when changed, so repeated turns don't bloat the log/context.
+    const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
+    if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
 
     for (let step = 0; step < this.maxSteps; step++) {
       // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
@@ -25,7 +27,9 @@ export class AgentLoop {
       if (pre?.rejected) break;
       // Compaction: prune old tool results (free), summarize when over budget.
       let messages = pruneToolResults(pre.messages, { maxBytes: this.compaction.pruneBytes, keepLast: this.compaction.keepRecent });
-      if (estimateChars(messages) > this.compaction.maxContextChars) await this.compact(session);
+      if (estimateChars(messages) > this.compaction.maxContextChars) {
+        try { await this.compact(session); } catch (err) { console.error(`[compact] failed, continuing: ${err.message}`); }
+      }
       messages = session.deriveMessages();
       await session.append("step/start", { step });
       let result;
@@ -50,7 +54,7 @@ export class AgentLoop {
       await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined });
       if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
       for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
-      const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes });
+      const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id });
       for (const r of results) await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
       await session.append("step/end", { step });
     }

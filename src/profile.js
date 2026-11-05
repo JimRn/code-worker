@@ -30,10 +30,13 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   // settings (Web settings page): persisted model config, seeded from env/CLI.
   const settings = new SettingsStore(profile.home ?? ".code-worker");
   ctx.provide("settings", settings);
+  // Consistent env family: OPENAI_* wins as a set, else DEEPSEEK_* as a set (no cross-mixing).
+  const envFamily = process.env.OPENAI_API_KEY || process.env.OPENAI_BASE_URL || process.env.OPENAI_MODEL ? "OPENAI" : "DEEPSEEK";
+  const env = (n) => process.env[`${envFamily}_${n}`]; // strict family, no per-field cross-mixing
   const modelConfig = {
-    apiKey: apiKey ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? settings.getApiKey(),
-    baseUrl: baseUrl ?? process.env.OPENAI_BASE_URL ?? process.env.DEEPSEEK_BASE_URL ?? settings.getConfig().baseUrl,
-    model: model ?? process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? settings.getConfig().model,
+    apiKey: apiKey ?? env("API_KEY") ?? settings.getApiKey(),
+    baseUrl: baseUrl ?? env("BASE_URL") ?? settings.getConfig().baseUrl,
+    model: model ?? env("MODEL") ?? settings.getConfig().model,
   };
   ctx.provide("modelConfig", modelConfig);
   // llm seam (ctx.llm) — adapter reads modelConfig at call time (live reconfigure).

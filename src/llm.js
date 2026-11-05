@@ -42,7 +42,8 @@ export class OpenAICompatibleAdapter {
   prepareCall({ model, messages, tools }) {
     const { apiKey, baseUrl, model: cfgModel } = this.resolve();
     const m = model ?? cfgModel;
-    const maxRetries = Number(this.config?.maxRetries ?? process.env.CW_LLM_RETRIES ?? 2);
+    const rawRetries = Number(this.config?.maxRetries ?? process.env.CW_LLM_RETRIES ?? 2);
+    const maxRetries = Number.isFinite(rawRetries) ? Math.min(5, Math.max(0, Math.floor(rawRetries))) : 2;
     return async function* () {
       // Retry policy (429/5xx/network) BEFORE the stream starts; once chunks
       // flow, the attempt is committed and failures surface as attempt errors.
@@ -85,12 +86,14 @@ export class OpenAICompatibleAdapter {
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
           if (delta.content) { text += delta.content; yield { type: "text", delta: delta.content }; }
-          for (const tc of delta.tool_calls ?? []) {
-            const cur = tcByIndex.get(tc.index) ?? { id: "", name: "", arguments: "" };
+          for (const [j, tc] of (delta.tool_calls ?? []).entries()) {
+            // Providers that omit `index` would collide on key `undefined`; fall back to position.
+            const key = tc.index ?? j;
+            const cur = tcByIndex.get(key) ?? { id: `tc-${key}`, name: "", arguments: "" };
             if (tc.id) cur.id = tc.id;
             if (tc.function?.name) cur.name = tc.function.name;
             if (tc.function?.arguments) cur.arguments += tc.function.arguments;
-            tcByIndex.set(tc.index, cur);
+            tcByIndex.set(key, cur);
           }
         }
       }

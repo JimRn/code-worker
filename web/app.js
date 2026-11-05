@@ -9,6 +9,7 @@ if (TOKEN) localStorage.setItem("cw-token", TOKEN);
 const api = (path) => `/api${path}${TOKEN ? `${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(TOKEN)}` : ""}`;
 
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const escAttr = (t) => esc(t).replace(/"/g, "&quot;");
 
 function renderEvent(ev) {
   const box = $("#messages");
@@ -19,7 +20,7 @@ function renderEvent(ev) {
     card.innerHTML = `⚠ 审批：<b>${esc(ev.data.name)}</b>(${esc(JSON.stringify(ev.data.args))}) ` +
       `<button data-ok="1">批准</button> <button data-ok="0">拒绝</button>`;
     card.querySelectorAll("button").forEach((b) => (b.onclick = async () => {
-      await fetch(api("/approvals"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId: ev.data.callId, approved: b.dataset.ok === "1" }) });
+      await fetch(api("/approvals"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId: ev.data.callId, sessionId: ev.data.sessionId, approved: b.dataset.ok === "1" }) });
       card.remove();
     }));
     box.appendChild(card);
@@ -79,7 +80,7 @@ function openStream(id) {
 
 async function refreshSessions() {
   const { sessions } = await (await fetch(api("/sessions"))).json();
-  $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${s.id}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
+  $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${escAttr(s.id)}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
   document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
 }
 
@@ -131,7 +132,7 @@ async function loadSettings() {
 async function refreshModelPicker(current) {
   const r = await (await fetch(api("/settings/test"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json().catch(() => ({}));
   const models = [...new Set([current, ...(r.models ?? [])].filter(Boolean))];
-  $("#model-picker").innerHTML = models.map((m) => `<option value="${esc(m)}" ${m === current ? "selected" : ""}>${esc(m)}</option>`).join("");
+  $("#model-picker").innerHTML = models.map((m) => `<option value="${escAttr(m)}" ${m === current ? "selected" : ""}>${esc(m)}</option>`).join("");
 }
 
 $("#save-settings").onclick = async () => {
@@ -159,7 +160,7 @@ async function refreshWorkspace() {
   $("#ws-root").textContent = r.root || "";
   $("#ws-list").innerHTML =
     (wsPath !== "." ? `<li data-up="1">📁 ..</li>` : "") +
-    (r.entries ?? []).map((e) => `<li data-name="${esc(e.name)}" class="${e.dir ? "dir" : ""}">${e.dir ? "📁" : "📄"} ${esc(e.name)}</li>`).join("");
+    (r.entries ?? []).map((e) => `<li data-name="${escAttr(e.name)}" class="${e.dir ? "dir" : ""}">${e.dir ? "📁" : "📄"} ${esc(e.name)}</li>`).join("");
   document.querySelectorAll("#ws-list li").forEach((li) => (li.onclick = () => {
     if (li.dataset.up) wsPath = wsPath.split("/").slice(0, -1).join("/") || ".";
     else if (li.classList.contains("dir")) wsPath = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;

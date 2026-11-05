@@ -23,12 +23,12 @@ export class ToolRegistry {
       function: { name: t.name, description: t.description, parameters: t.schema ?? { type: "object", properties: {} } },
     }));
   }
-  async execute(calls, { maxBytes = 20000 } = {}) {
+  async execute(calls, { maxBytes = 20000, sessionId } = {}) {
     const results = [];
     for (const call of calls) {
       const tool = this.tools.get(call.name);
       if (!tool) { results.push({ callId: call.id, name: call.name, output: `Error: unknown tool ${call.name}`, isError: true }); continue; }
-      let req = { name: call.name, args: call.args ?? {}, callId: call.id };
+      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId };
       req = await this.ctx.waterfall("tools/pre-execute", req);
       if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
       let output;
@@ -58,8 +58,9 @@ export function installApprovalGuard(ctx, { autoApprove }) {
     if (ref.current) return next(req); // auto-approved
     if (ref.mode === "per-call") {
       const decision = await new Promise((resolve) => {
-        ref.pending.set(req.callId, { resolve, req });
-        ref.notify?.({ callId: req.callId, name: req.name, args: req.args });
+        const timer = setTimeout(() => resolve(false), 30000); // 30s timeout -> deny
+        ref.pending.set(req.callId, { resolve: (v) => { clearTimeout(timer); resolve(v); }, req });
+        ref.notify?.({ callId: req.callId, name: req.name, args: req.args, sessionId: req.sessionId });
       });
       ref.pending.delete(req.callId);
       if (!decision) req.denied = `${req.name} denied by user`;

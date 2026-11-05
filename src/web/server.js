@@ -3,9 +3,9 @@
 // exactly like DSH's Web Session-follow adapter consumes agent/assistant-stream.
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { networkInterfaces } from "node:os";
+import { networkInterfaces, homedir, tmpdir } from "node:os";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -27,12 +27,13 @@ export function createWebServer({ ctx, store, approval, token }) {
   const loop = ctx.require("agentLoop");
   const settings = ctx.get("settings");
   const modelConfig = ctx.get("modelConfig");
+  const bootWorkspace = ctx.require("fs").root;
   const running = new Set(); // sessionIds with an in-flight turn
-  const sseClients = new Set(); // all connected streams (for approval broadcast)
-  // Per-call approval: guard suspends; we fan the request out to every browser.
-  approval.notify = ({ callId, name, args }) => {
-    const frame = `data: ${JSON.stringify({ live: true, type: "approval/request", data: { callId, name, args } })}\n\n`;
-    for (const res of sseClients) res.write(frame);
+  const sseClients = new Map(); // sessionId -> Set<res> (approval notify is session-directed)
+  // Per-call approval: guard suspends; we fan the request out to that session's browsers only.
+  approval.notify = ({ callId, name, args, sessionId }) => {
+    const frame = `data: ${JSON.stringify({ live: true, type: "approval/request", data: { callId, name, args, sessionId } })}\n\n`;
+    for (const res of sseClients.get(sessionId) ?? []) { try { res.write(frame); } catch { /* client gone */ } }
   };
 
   const sendJson = (res, code, obj) => {
@@ -41,7 +42,10 @@ export function createWebServer({ ctx, store, approval, token }) {
   };
   const readBody = (req) => new Promise((resolve, reject) => {
     let b = "";
-    req.on("data", (c) => { b += c; if (b.length > 1e6) reject(new Error("body too large")); });
+    req.on("data", (c) => {
+      b += c;
+      if (b.length > 1e6) { req.destroy(); reject(new Error("body too large")); }
+    });
     req.on("end", () => { try { resolve(b ? JSON.parse(b) : {}); } catch { reject(new Error("invalid JSON body")); } });
   });
 
@@ -60,7 +64,9 @@ export function createWebServer({ ctx, store, approval, token }) {
       // --- static client (Host serves frontend-static) ---
       if (req.method === "GET" && (url.pathname === "/" || /\.(html|js|css)$/.test(url.pathname))) {
         const file = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
-        const full = join(webDir, file);
+        const full = resolve(webDir, file);
+        // Traversal whitelist: resolved path must stay inside webDir.
+        if (full !== webDir && !full.startsWith(webDir + sep)) { res.writeHead(403); return res.end("forbidden"); }
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
@@ -85,6 +91,9 @@ export function createWebServer({ ctx, store, approval, token }) {
         const abs = resolve(body.path);
         const { statSync } = await import("node:fs");
         if (!existsSync(abs) || !statSync(abs).isDirectory()) return sendJson(res, 400, { error: "not a directory" });
+        // Allowlist: only the boot workspace subtree or the user's home subtree.
+        const allowed = [bootWorkspace, homedir(), tmpdir()].some((r) => abs === r || abs.startsWith(r + sep));
+        if (!allowed) return sendJson(res, 403, { error: "workspace outside allowed roots (boot workspace / home)" });
         fs.root = abs;
         shell.workspace = abs;
         settings.setWorkspace(abs);
@@ -95,6 +104,7 @@ export function createWebServer({ ctx, store, approval, token }) {
         const body = await readBody(req);
         const entry = approval.pending?.get(body.callId);
         if (!entry) return sendJson(res, 404, { error: "no pending approval" });
+        if (body.sessionId && entry.req.sessionId !== body.sessionId) return sendJson(res, 403, { error: "approval belongs to a different session" });
         entry.resolve(Boolean(body.approved));
         return sendJson(res, 200, { ok: true });
       }
@@ -114,7 +124,16 @@ export function createWebServer({ ctx, store, approval, token }) {
       if (url.pathname === "/api/settings/test" && req.method === "POST") {
         const body = await readBody(req);
         const baseUrl = (body.baseUrl || modelConfig.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
-        const key = body.apiKey || modelConfig.apiKey;
+        // SSRF/key-leak guard: the STORED key is only sent to the configured host.
+        // A body-provided key is sent only to the body-provided host.
+        const storedHost = (() => { try { return new URL(modelConfig.baseUrl || "https://api.openai.com/v1").host; } catch { return ""; } })();
+        let key = body.apiKey;
+        if (!key) {
+          let reqHost = "";
+          try { reqHost = new URL(baseUrl).host; } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
+          if (reqHost !== storedHost) return sendJson(res, 200, { ok: false, error: "stored key not sent to a different host (provide apiKey explicitly)" });
+          key = modelConfig.apiKey;
+        }
         if (!key) return sendJson(res, 400, { ok: false, error: "no API key configured" });
         try {
           const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` } });
@@ -148,9 +167,17 @@ export function createWebServer({ ctx, store, approval, token }) {
           // SSE: replay history then stream session/event live.
           res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
           for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
-          const off = session.subscribe((ev) => res.write(`data: ${JSON.stringify(ev)}\n\n`));
-          sseClients.add(res);
-          req.on("close", () => { off(); sseClients.delete(res); });
+          const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
+          if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
+          sseClients.get(session.id).add(res);
+          req.on("close", () => {
+            off();
+            sseClients.get(session.id)?.delete(res);
+            // Disconnect: auto-deny this session's pending approvals (executor must not hang).
+            for (const [callId, entry] of approval.pending ?? []) {
+              if (entry.req.sessionId === session.id) entry.resolve(false);
+            }
+          });
           return;
         }
         if (m[3] === "compact" && req.method === "POST") {
@@ -165,17 +192,22 @@ export function createWebServer({ ctx, store, approval, token }) {
           const body = await readBody(req);
           if (!body.text) return sendJson(res, 400, { error: "text is required" });
           if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
+          // Per-turn scope: save/restore shared approval state around this turn.
+          const prevApproval = { current: approval.current, mode: approval.mode };
           approval.current = Boolean(body.autoApprove);
           if (body.approvalMode) approval.mode = body.approvalMode;
           running.add(session.id);
           sendJson(res, 202, { accepted: true });
-          loop.runTurn(session, body.text, { model: body.model }).catch((e) => console.error("[web] turn failed:", e.message)).finally(() => running.delete(session.id));
+          loop.runTurn(session, body.text, { model: body.model })
+            .catch((e) => console.error("[web] turn failed:", e.message))
+            .finally(() => { running.delete(session.id); approval.current = prevApproval.current; approval.mode = prevApproval.mode; });
           return;
         }
       }
       res.writeHead(404); res.end("not found");
     } catch (err) {
-      sendJson(res, 500, { error: err.message });
+      if (!res.headersSent) sendJson(res, 500, { error: err.message });
+      else console.error("[web] handler error after headers sent:", err.message);
     }
   });
 }
