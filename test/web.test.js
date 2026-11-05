@@ -9,7 +9,7 @@ import { startWebServer, lanAddresses } from "../src/web/server.js";
 test("web: static + session RPC + turn over SSE", async () => {
   const ws = mkdtempSync(join(tmpdir(), "cw-web-ws-"));
   const approval = { current: true };
-  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true });
+  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   const server = await startWebServer({ ctx, store, approval }, 0);
   const base = `http://localhost:${server.address().port}`;
   try {
@@ -38,7 +38,7 @@ test("web LAN: token auth gates /api; lanAddresses lists non-internal IPv4", asy
   assert.ok(Array.isArray(lanAddresses()));
   const ws = mkdtempSync(join(tmpdir(), "cw-web-lan-"));
   const approval = { current: true };
-  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true });
+  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   const server = await startWebServer({ ctx, store, approval, token: "s3cret" }, { port: 0, host: "127.0.0.1" });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {

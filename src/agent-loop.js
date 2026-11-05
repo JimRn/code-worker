@@ -3,10 +3,11 @@
 //   -> prepareCall bind -> commit system/user -> freeze -> stream -> tools pipeline -> step/end
 //   -> (more tools owed?) -> next step -> agent/turn-stopping (serial) -> turn/end
 export class AgentLoop {
-  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "deepseek", model } = {}) {
+  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "openai-compatible", model, config } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
-    this.provider = provider; this.model = model;
+    this.provider = provider; this.model = model; this.config = config; // mutable ref: Web settings live-update
   }
+  currentModel() { return this.config?.model ?? this.model; }
   async runTurn(session, userText, { onText } = {}) {
     const ctx = this.ctx;
     await session.append("turn/start", {});
@@ -16,12 +17,12 @@ export class AgentLoop {
 
     for (let step = 0; step < this.maxSteps; step++) {
       // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
-      const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: this.model } });
+      const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: this.currentModel() } });
       if (pre?.rejected) break;
       await session.append("step/start", { step });
       let result;
       try {
-        const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: this.model, messages: pre.messages, tools: ctx.require("tools").schemas() });
+        const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: this.currentModel(), messages: pre.messages, tools: ctx.require("tools").schemas() });
         result = await bound();
       } catch (err) {
         await session.append("assistant/attempt", { error: err.message });

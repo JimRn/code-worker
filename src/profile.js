@@ -8,9 +8,11 @@ import { LocalFs, registerFsTools } from "./fs.js";
 import { LocalShell, registerBashTool } from "./shell.js";
 import { LlmService, OpenAICompatibleAdapter, MockAdapter } from "./llm.js";
 import { AgentLoop } from "./agent-loop.js";
+import { SettingsStore } from "./web/settings.js";
 
-export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl } = {}) {
+export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl, home } = {}) {
   const profile = JSON.parse(readFileSync(profilePath, "utf8"));
+  if (home) profile.home = home; // tests point home at a temp dir
   const cfg = { ...profile.config, workspace: workspace ?? profile.config?.workspace ?? process.cwd() };
   const ctx = new Context();
 
@@ -25,19 +27,22 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   // shell seam (ctx.shell) + consumer tool
   ctx.provide("shell", new LocalShell(cfg.workspace));
   registerBashTool(ctx);
-  // llm seam (ctx.llm)
+  // settings (Web settings page): persisted model config, seeded from env/CLI.
+  const settings = new SettingsStore(profile.home ?? ".code-worker");
+  ctx.provide("settings", settings);
+  const modelConfig = {
+    apiKey: apiKey ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY ?? settings.getApiKey(),
+    baseUrl: baseUrl ?? process.env.OPENAI_BASE_URL ?? process.env.DEEPSEEK_BASE_URL ?? settings.getConfig().baseUrl,
+    model: model ?? process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? settings.getConfig().model,
+  };
+  ctx.provide("modelConfig", modelConfig);
+  // llm seam (ctx.llm) — adapter reads modelConfig at call time (live reconfigure).
   const llm = new LlmService();
   ctx.provide("llm", llm);
-  // OpenAI-compatible endpoint; DEEPSEEK_* env vars remain as fallback.
-  const resolvedModel = model ?? process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL;
   if (mock) ctx.effect(() => llm.registerAdapter("openai-compatible", new MockAdapter()));
-  else ctx.effect(() => llm.registerAdapter("openai-compatible", new OpenAICompatibleAdapter({
-    apiKey: apiKey ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY,
-    baseUrl: baseUrl ?? process.env.OPENAI_BASE_URL ?? process.env.DEEPSEEK_BASE_URL,
-    model: resolvedModel,
-  })));
-  // agent-loop (ctx.agentLoop)
-  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", model: resolvedModel }));
+  else ctx.effect(() => llm.registerAdapter("openai-compatible", new OpenAICompatibleAdapter({ config: modelConfig })));
+  // agent-loop (ctx.agentLoop) — model resolved per turn from modelConfig.
+  ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", config: modelConfig }));
   // guard-approval (autoApprove may be boolean or a mutable {current} ref, e.g. Web toggle)
   installApprovalGuard(ctx, { autoApprove });
 

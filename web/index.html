@@ -13,7 +13,16 @@
     <button id="new-session">+ 新会话</button>
     <ul id="session-list"></ul>
     <label class="approve"><input type="checkbox" id="approve"> 批准写文件/命令</label>
+    <button id="open-settings" type="button">⚙ 模型设置</button>
     <div id="status" class="status"></div>
+    <div id="model-info" class="status"></div>
+    <div id="settings-panel" hidden>
+      <label>Base URL <input id="set-baseurl" placeholder="https://api.openai.com/v1"></label>
+      <label>模型 <input id="set-model" placeholder="gpt-4o-mini"></label>
+      <label>API Key <input id="set-apikey" type="password" autocomplete="new-password" placeholder=""></label>
+      <div class="row"><button id="save-settings" type="button">保存</button><button id="test-settings" type="button">测试连接</button></div>
+      <div id="settings-status" class="status"></div>
+    </div>
   </aside>
   <main id="main">
     <div id="messages"></div>

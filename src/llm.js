@@ -20,16 +20,28 @@ export class LlmService {
  * Env: OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL (DEEPSEEK_* kept as fallback).
  */
 export class OpenAICompatibleAdapter {
-  constructor({ apiKey, baseUrl = "https://api.openai.com/v1", model = "gpt-4o-mini" } = {}) {
-    if (!apiKey) throw new Error("OPENAI_API_KEY is required (set env or .env; see .env.example)");
-    this.apiKey = apiKey; this.baseUrl = baseUrl.replace(/\/$/, ""); this.model = model;
+  /**
+   * @param {{apiKey?, baseUrl?, model?} | {config: {apiKey?, baseUrl?, model?}}} opts
+   * When `config` (a mutable ref) is given, values are read at call time so
+   * the Web settings page can change endpoint/key/model without restart.
+   */
+  constructor(opts = {}) {
+    this.config = opts.config ?? opts;
+    this.defaults = { baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" };
+  }
+  resolve() {
+    const c = this.config ?? {};
+    const apiKey = c.apiKey;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is required (configure in Web settings or env/.env; see .env.example)");
+    return { apiKey, baseUrl: (c.baseUrl ?? this.defaults.baseUrl).replace(/\/$/, ""), model: c.model ?? this.defaults.model };
   }
   prepareCall({ model, messages, tools }) {
-    const m = model ?? this.model;
+    const { apiKey, baseUrl, model: cfgModel } = this.resolve();
+    const m = model ?? cfgModel;
     return async () => {
-      const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+        headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model: m, messages, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
       });
       if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);

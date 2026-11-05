@@ -68,6 +68,39 @@ $("#input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); }
 });
 
+// --- Models settings (mirrors DSH ui-settings-models): key is write-only,
+// the page only ever learns hasApiKey, never the secret value. ---
+$("#open-settings").onclick = () => {
+  const p = $("#settings-panel");
+  p.hidden = !p.hidden;
+  if (!p.hidden) loadSettings();
+};
+async function loadSettings() {
+  const s = await (await fetch(api("/settings"))).json();
+  $("#set-baseurl").value = s.baseUrl || "";
+  $("#set-model").value = s.model || "";
+  $("#set-apikey").value = "";
+  $("#set-apikey").placeholder = s.hasApiKey ? "已保存（留空则不修改）" : "sk-...";
+  $("#model-info").textContent = s.model ? `模型：${s.model}` : "";
+}
+$("#save-settings").onclick = async () => {
+  const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim() };
+  const key = $("#set-apikey").value.trim();
+  if (key) body.apiKey = key;
+  const r = await fetch(api("/settings"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const s = await r.json();
+  $("#settings-status").textContent = r.ok ? `已保存${s.hasApiKey ? "（key 已配置）" : ""}` : `失败：${s.error}`;
+  loadSettings();
+};
+$("#test-settings").onclick = async () => {
+  $("#settings-status").textContent = "测试中…";
+  const body = { baseUrl: $("#set-baseurl").value.trim() };
+  const key = $("#set-apikey").value.trim();
+  if (key) body.apiKey = key;
+  const r = await (await fetch(api("/settings/test"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+  $("#settings-status").textContent = r.ok ? `连接正常${r.models?.length ? `，可用模型 ${r.models.length}+` : ""}` : `失败：${r.error || r.status}`;
+};
+
 refreshSessions().then(async () => {
   const first = document.querySelector("#session-list li");
   if (first) selectSession(first.dataset.id);

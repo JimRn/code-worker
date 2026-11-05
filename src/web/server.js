@@ -25,6 +25,8 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
  */
 export function createWebServer({ ctx, store, approval, token }) {
   const loop = ctx.require("agentLoop");
+  const settings = ctx.get("settings");
+  const modelConfig = ctx.get("modelConfig");
   const running = new Set(); // sessionIds with an in-flight turn
 
   const sendJson = (res, code, obj) => {
@@ -56,6 +58,33 @@ export function createWebServer({ ctx, store, approval, token }) {
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
+      }
+      // --- settings (redacted; API key write-only, never returned) ---
+      if (url.pathname === "/api/settings" && req.method === "GET") {
+        return sendJson(res, 200, settings.describe());
+      }
+      if (url.pathname === "/api/settings" && req.method === "PUT") {
+        const body = await readBody(req);
+        const view = settings.update(body);
+        // Live-apply to the running adapter/loop without restart.
+        if (body.baseUrl !== undefined) modelConfig.baseUrl = body.baseUrl || undefined;
+        if (body.model !== undefined) modelConfig.model = body.model || undefined;
+        if (body.apiKey) modelConfig.apiKey = body.apiKey;
+        return sendJson(res, 200, view);
+      }
+      if (url.pathname === "/api/settings/test" && req.method === "POST") {
+        const body = await readBody(req);
+        const baseUrl = (body.baseUrl || modelConfig.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
+        const key = body.apiKey || modelConfig.apiKey;
+        if (!key) return sendJson(res, 400, { ok: false, error: "no API key configured" });
+        try {
+          const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` } });
+          const json = await r.json().catch(() => ({}));
+          const models = json.data?.map?.((m) => m.id) ?? [];
+          return sendJson(res, 200, { ok: r.ok, status: r.status, models: models.slice(0, 20) });
+        } catch (err) {
+          return sendJson(res, 200, { ok: false, error: err.message });
+        }
       }
       // --- session RPC ---
       if (url.pathname === "/api/sessions" && req.method === "GET") {
@@ -100,7 +129,9 @@ export function createWebServer({ ctx, store, approval, token }) {
 }
 
 /** Start listening on all interfaces (LAN reachable); resolves with the bound address. */
-export function startWebServer(deps, { port = 3000, host = "0.0.0.0" } = {}) {
+export function startWebServer(deps, opts = {}) {
+  if (typeof opts === "number") opts = { port: opts }; // backward-compat positional port
+  const { port = 3000, host = "0.0.0.0" } = opts;
   const server = createWebServer(deps);
   return new Promise((resolve) => server.listen(port, host, () => resolve(server)));
 }

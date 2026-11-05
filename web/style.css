@@ -20,3 +20,10 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #input { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; resize:none; }
 button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 18px; cursor:pointer; }
 #new-session { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
+#open-settings { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
+#settings-panel { display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
+#settings-panel[hidden] { display:none; }
+#settings-panel label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
+#settings-panel input { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; }
+#settings-panel .row { display:flex; gap:8px; }
+#settings-panel .row button { flex:1; padding:7px 0; }

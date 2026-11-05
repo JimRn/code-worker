@@ -29,7 +29,7 @@ test("mock end-to-end: list_dir tool round-trip is fully logged", async () => {
   writeFileSync(join(ws, "hello.txt"), "hi");
   const home = mkdtempSync(join(tmpdir(), "cw-home-"));
   // boot with mock profile against temp workspace/home via profile config override:
-  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: true, mock: true });
+  const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: true, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   const session = store.create();
   // point session home is profile home; just assert turn runs and log contains tool flow
   await ctx.require("agentLoop").runTurn(session, "list files in workspace");
@@ -42,14 +42,14 @@ test("mock end-to-end: list_dir tool round-trip is fully logged", async () => {
 
 test("fs confinement: path escape fails loud", async () => {
   const ws = mkdtempSync(join(tmpdir(), "cw-ws2-"));
-  const { ctx, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: true, mock: true });
+  const { ctx, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: true, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   await assert.rejects(() => ctx.require("fs").readFile("../secret"), /escapes workspace/);
   await dispose();
 });
 
 test("approval guard denies write_file without --yes (enforced at executor)", async () => {
   const ws = mkdtempSync(join(tmpdir(), "cw-ws3-"));
-  const { ctx, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: false, mock: true });
+  const { ctx, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: false, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   const [r] = await ctx.require("tools").execute([{ id: "1", name: "write_file", args: { path: "x.txt", content: "y" } }]);
   assert.match(r.output, /Denied/);
   await dispose();
