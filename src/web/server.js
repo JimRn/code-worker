@@ -88,12 +88,15 @@ export function createWebServer({ ctx, store, approval, token }) {
         const fs = ctx.require("fs");
         const shell = ctx.require("shell");
         const { resolve, sep } = await import("node:path");
-        const abs = resolve(body.path);
-        const { statSync } = await import("node:fs");
-        if (!existsSync(abs) || !statSync(abs).isDirectory()) return sendJson(res, 400, { error: "not a directory" });
-        // Allowlist: only the boot workspace subtree or the user's home subtree.
+        const { realpathSync, statSync } = await import("node:fs");
+        if (!existsSync(body.path) || !statSync(body.path).isDirectory()) return sendJson(res, 400, { error: "not a directory" });
+        // Canonicalize (defeats symlink escape) before the allowlist check.
+        const abs = realpathSync(body.path);
         const allowed = [bootWorkspace, homedir(), tmpdir()].some((r) => abs === r || abs.startsWith(r + sep));
         if (!allowed) return sendJson(res, 403, { error: "workspace outside allowed roots (boot workspace / home)" });
+        // Sensitive subdirectories are never workspace roots.
+        const BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
+        if (abs.split(sep).some((seg) => BLOCKED.has(seg))) return sendJson(res, 403, { error: "workspace in a sensitive directory" });
         fs.root = abs;
         shell.workspace = abs;
         settings.setWorkspace(abs);
@@ -124,16 +127,13 @@ export function createWebServer({ ctx, store, approval, token }) {
       if (url.pathname === "/api/settings/test" && req.method === "POST") {
         const body = await readBody(req);
         const baseUrl = (body.baseUrl || modelConfig.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
-        // SSRF/key-leak guard: the STORED key is only sent to the configured host.
-        // A body-provided key is sent only to the body-provided host.
+        // SSRF guard: test only ever calls the CONFIGURED host. A body baseUrl
+        // pointing elsewhere is rejected (no intranet probing, no key leak).
         const storedHost = (() => { try { return new URL(modelConfig.baseUrl || "https://api.openai.com/v1").host; } catch { return ""; } })();
-        let key = body.apiKey;
-        if (!key) {
-          let reqHost = "";
-          try { reqHost = new URL(baseUrl).host; } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
-          if (reqHost !== storedHost) return sendJson(res, 200, { ok: false, error: "stored key not sent to a different host (provide apiKey explicitly)" });
-          key = modelConfig.apiKey;
-        }
+        let reqHost = "";
+        try { reqHost = new URL(baseUrl).host; } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
+        if (reqHost !== storedHost) return sendJson(res, 200, { ok: false, error: "test endpoint restricted to the configured host" });
+        const key = body.apiKey || modelConfig.apiKey;
         if (!key) return sendJson(res, 400, { ok: false, error: "no API key configured" });
         try {
           const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` } });
@@ -173,9 +173,12 @@ export function createWebServer({ ctx, store, approval, token }) {
           req.on("close", () => {
             off();
             sseClients.get(session.id)?.delete(res);
-            // Disconnect: auto-deny this session's pending approvals (executor must not hang).
-            for (const [callId, entry] of approval.pending ?? []) {
-              if (entry.req.sessionId === session.id) entry.resolve(false);
+            // Disconnect: auto-deny only when NO tab remains for this session
+            // (one tab closing must not deny another tab's pending approval).
+            if ((sseClients.get(session.id)?.size ?? 0) === 0) {
+              for (const [callId, entry] of approval.pending ?? []) {
+                if (entry.req.sessionId === session.id) entry.resolve(false);
+              }
             }
           });
           return;

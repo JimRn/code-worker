@@ -46,7 +46,7 @@ function renderEvent(ev) {
   else if (ev.type === "assistant/message") {
     div.className = "msg assistant";
     div.innerHTML = esc(ev.data.text || "(tool call)") +
-      (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${t.name}(${JSON.stringify(t.args)})`).join("<br>")}</div>` : "") +
+      (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${esc(t.name)}(${esc(JSON.stringify(t.args))})`).join("<br>")}</div>` : "") +
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
     if (ev.data.usage) updateUsage();
   } else if (ev.type === "tool/result") { div.className = "msg tool"; div.textContent = `→ ${ev.data.name}: ${ev.data.output}`; }

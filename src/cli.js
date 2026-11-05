@@ -42,6 +42,7 @@ if (has("--web")) {
   const server = await startWebServer({ ctx, store, approval, token }, { port, host });
   const bound = server.address().port;
   console.error(`[code-worker] web (model=${process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? "default"}${token ? ", token auth ON" : ", no token (LAN trusted only)"}):`);
+  if (!token && host !== "127.0.0.1" && host !== "localhost") console.error("[code-worker] WARN: no token on a non-localhost bind — anyone on the LAN can use this (file/command access). Set --token.");
   for (const addr of ["localhost", ...lanAddresses()]) console.error(`  http://${addr}:${bound}${token ? "/?token=" + token : ""}`);
   await new Promise(() => {}); // serve until killed
 }
