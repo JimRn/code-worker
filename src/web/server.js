@@ -93,7 +93,7 @@ export function createWebServer({ ctx, store, approval, token }) {
         const ids = existsSync(store.homeDir)
           ? readdirSync(store.homeDir).filter((id) => { try { return statSync(join(store.homeDir, id)).isDirectory(); } catch { return false; } })
           : [];
-        return sendJson(res, 200, { sessions: ids.map((id) => ({ id })) });
+        return sendJson(res, 200, { sessions: ids.map((id) => { const s = store.open(id); return { id, title: s.title() }; }) });
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const s = store.create();

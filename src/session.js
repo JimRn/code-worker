@@ -61,6 +61,13 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
+  /** Latest generated title, or null. */
+  title() {
+    for (let i = this.events.length - 1; i >= 0; i--) {
+      if (this.events[i].type === "session/title") return this.events[i].data.text;
+    }
+    return null;
+  }
   /** Project model history from the log. After a compaction/summary, only the
    *  summary + later events are model-visible (the summary is itself logged). */
   deriveMessages() {

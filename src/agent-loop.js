@@ -55,7 +55,32 @@ export class AgentLoop {
     }
     await ctx.serial("agent/turn-stopping", { session });
     await session.append("turn/end", {});
+    await this.maybeGenerateTitle(session);
     return session.deriveMessages();
+  }
+  /** Generate a session title once, after the first completed turn. */
+  async maybeGenerateTitle(session) {
+    if (session.title()) return null;
+    const firstUser = session.events.find((e) => e.type === "user/message");
+    if (!firstUser) return null;
+    try {
+      const bound = this.ctx.require("llm").prepareCall({
+        provider: this.provider, model: this.currentModel(),
+        messages: [
+          { role: "system", content: "Reply with a short session title (max 8 words, no quotes, same language as the user). Title only." },
+          { role: "user", content: firstUser.data.text },
+        ],
+        tools: [],
+      });
+      let text = "";
+      for await (const c of bound()) if (c.type === "finish") text = c.text;
+      text = text.trim().replace(/^["'「]|["'」]$/g, "").slice(0, 60);
+      if (!text) return null;
+      await session.append("session/title", { text });
+      return text;
+    } catch {
+      return null; // title is best-effort; never break the turn
+    }
   }
   /** Compact now: summarize all but the last `keepRecent` exchanges into a durable summary event. */
   async compact(session) {

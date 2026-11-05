@@ -50,7 +50,7 @@ function openStream(id) {
 
 async function refreshSessions() {
   const { sessions } = await (await fetch(api("/sessions"))).json();
-  $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${s.id}" class="${s.id === currentId ? "active" : ""}">${s.id}</li>`).join("");
+  $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${s.id}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
   document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
 }
 
