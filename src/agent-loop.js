@@ -11,7 +11,8 @@ export class AgentLoop {
     this.compaction = { maxContextChars: compaction.maxContextChars ?? 60000, pruneBytes: compaction.pruneBytes ?? 2000, keepRecent: compaction.keepRecent ?? 4, ...compaction };
   }
   currentModel() { return this.config?.model ?? this.model; }
-  async runTurn(session, userText, { onText } = {}) {
+  async runTurn(session, userText, { onText, model } = {}) {
+    const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
     const ctx = this.ctx;
     await session.append("turn/start", {});
     await session.append("user/message", { text: userText });
@@ -20,7 +21,7 @@ export class AgentLoop {
 
     for (let step = 0; step < this.maxSteps; step++) {
       // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
-      const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: this.currentModel() } });
+      const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
       if (pre?.rejected) break;
       // Compaction: prune old tool results (free), summarize when over budget.
       let messages = pruneToolResults(pre.messages, { maxBytes: this.compaction.pruneBytes, keepLast: this.compaction.keepRecent });
@@ -30,7 +31,7 @@ export class AgentLoop {
       let result;
       try {
         // Stream: chunks are live-only (assistant/chunk); settlement is one durable message.
-        const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: this.currentModel(), messages, tools: ctx.require("tools").schemas() });
+        const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: ctx.require("tools").schemas() });
         result = { text: "", toolCalls: [] };
         for await (const chunk of bound()) {
           if (chunk.type === "text") {

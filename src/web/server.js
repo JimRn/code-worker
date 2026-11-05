@@ -128,7 +128,7 @@ export function createWebServer({ ctx, store, approval, token }) {
           approval.current = Boolean(body.autoApprove);
           running.add(session.id);
           sendJson(res, 202, { accepted: true });
-          loop.runTurn(session, body.text).catch((e) => console.error("[web] turn failed:", e.message)).finally(() => running.delete(session.id));
+          loop.runTurn(session, body.text, { model: body.model }).catch((e) => console.error("[web] turn failed:", e.message)).finally(() => running.delete(session.id));
           return;
         }
       }

@@ -82,7 +82,7 @@ $("#composer").onsubmit = async (e) => {
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, autoApprove: $("#approve").checked }),
+    body: JSON.stringify({ text, autoApprove: $("#approve").checked, model: $("#model-picker").value || undefined }),
   });
   $("#status").textContent = "";
 };
@@ -105,7 +105,14 @@ async function loadSettings() {
   $("#set-apikey").value = "";
   $("#set-apikey").placeholder = s.hasApiKey ? "已保存（留空则不修改）" : "sk-...";
   $("#model-info").textContent = s.model ? `模型：${s.model}` : "";
+  refreshModelPicker(s.model);
 }
+async function refreshModelPicker(current) {
+  const r = await (await fetch(api("/settings/test"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json().catch(() => ({}));
+  const models = [...new Set([current, ...(r.models ?? [])].filter(Boolean))];
+  $("#model-picker").innerHTML = models.map((m) => `<option value="${esc(m)}" ${m === current ? "selected" : ""}>${esc(m)}</option>`).join("");
+}
+
 $("#save-settings").onclick = async () => {
   const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim() };
   const key = $("#set-apikey").value.trim();
@@ -124,6 +131,7 @@ $("#test-settings").onclick = async () => {
   $("#settings-status").textContent = r.ok ? `连接正常${r.models?.length ? `，可用模型 ${r.models.length}+` : ""}` : `失败：${r.error || r.status}`;
 };
 
+loadSettings?.();
 refreshSessions().then(async () => {
   const first = document.querySelector("#session-list li");
   if (first) selectSession(first.dataset.id);
