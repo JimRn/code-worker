@@ -38,7 +38,7 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   })));
   // agent-loop (ctx.agentLoop)
   ctx.provide("agentLoop", new AgentLoop(ctx, { maxSteps: cfg.maxSteps, toolResultMaxBytes: cfg.toolResultMaxBytes, provider: "openai-compatible", model: resolvedModel }));
-  // guard-approval
+  // guard-approval (autoApprove may be boolean or a mutable {current} ref, e.g. Web toggle)
   installApprovalGuard(ctx, { autoApprove });
 
   return { ctx, profile, store, dispose: () => ctx.dispose() };

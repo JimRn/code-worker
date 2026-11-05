@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Worker</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="brand">Code Worker</div>
+    <button id="new-session">+ 新会话</button>
+    <ul id="session-list"></ul>
+    <label class="approve"><input type="checkbox" id="approve"> 批准写文件/命令</label>
+    <div id="status" class="status"></div>
+  </aside>
+  <main id="main">
+    <div id="messages"></div>
+    <form id="composer">
+      <textarea id="input" rows="3" placeholder="输入任务，Enter 发送（Shift+Enter 换行）"></textarea>
+      <button type="submit">发送</button>
+    </form>
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

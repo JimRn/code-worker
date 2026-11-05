@@ -23,14 +23,24 @@ const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : un
 const VALUE_FLAGS = ["--profile", "--workspace", "--session", "--base-url", "--model", "--api-key"];
 const task = args.filter((a) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[args.indexOf(a) - 1])).join(" ");
 
+// Web mode shares a mutable approval ref with the approval guard (approve toggle).
+const approval = { current: has("--yes") || process.env.CW_AUTO_APPROVE === "true" };
 const { ctx, store, dispose } = await bootProfile(join(root, "profiles", "personal.json"), {
   workspace: val("--workspace") ?? process.env.CW_WORKSPACE,
-  autoApprove: has("--yes") || process.env.CW_AUTO_APPROVE === "true",
+  autoApprove: approval,
   mock: has("--mock"),
   baseUrl: val("--base-url"),
   model: val("--model"),
   apiKey: val("--api-key"),
 });
+
+if (has("--web")) {
+  const { startWebServer } = await import("./web/server.js");
+  const port = Number(val("--port") ?? 3000);
+  const server = await startWebServer({ ctx, store, approval }, port);
+  console.error(`[code-worker] web: http://localhost:${server.address().port} (model=${process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? "default"})`);
+  await new Promise(() => {}); // serve until killed
+}
 const loop = ctx.require("agentLoop");
 const session = val("--session") ? store.open(val("--session")) : store.create();
 console.error(`[code-worker] session=${session.id} home=${session.dir}`);

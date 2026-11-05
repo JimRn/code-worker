@@ -45,3 +45,22 @@ npm test   # node --test，覆盖 waterfall/可逆 effect/端到端日志/confin
 ## 已知局限
 
 无流式输出、无 compaction、无子代理/Web 检索、无 SQLite 检索；`bash` 在 workspace 目录执行本地 shell（个人使用，默认需 `--yes`）。
+
+## Web 界面（参考 DeepSeek Host + Client 结构）
+
+DeepSeek Web = Host（Node 服务静态页 + RPC）+ Client（浏览器按 session 事件渲染）。本项目等价实现：
+
+| DeepSeek | code-worker |
+|---|---|
+| `host/frontend-static` | `src/web/server.js` 静态服务 `web/` |
+| `api/session-controller` RPC | `POST/GET /api/sessions[/:id][/turn]` |
+| `session/event` 实时流 | `GET /api/sessions/:id/stream`（SSE：先重放历史再推 live 事件；`Session.append` 内置 `subscribe` 广播） |
+| 浏览器 shell 按事件渲染 | `web/app.js`（EventSource 渲染 user/assistant/tool 结果） |
+
+```sh
+node src/cli.js --web --mock --port 3100        # 离线演示
+node src/cli.js --web --port 3000               # 真实 OpenAI-compatible 端点（.env 配置）
+# 浏览器打开 http://localhost:3000，侧栏管理会话，勾选“批准写文件/命令”后发送任务
+```
+
+审批切换：Web 的 approve 开关与 CLI 的 `--yes` 共享同一可变 approval ref，`tools/pre-execute` 每次执行前读取。

@@ -34,11 +34,18 @@ export class Session {
         .map((l) => JSON.parse(l));
     }
   }
+  /** Subscribe to session/event (live broadcast, e.g. SSE). Returns unsubscriber. */
+  subscribe(fn) {
+    this.onAppend ??= new Set();
+    this.onAppend.add(fn);
+    return () => this.onAppend?.delete(fn);
+  }
   /** Append one durable event; broadcast session/event (emit). */
   async append(type, data = {}) {
     const ev = { v: SESSION_FORMAT_VERSION, seq: this.events.length, ts: Date.now(), type, data };
     this.events.push(ev);
     appendFileSync(this.file, JSON.stringify(ev) + "\n");
+    for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
   /** Project model history from the log. */

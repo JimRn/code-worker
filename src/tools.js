@@ -48,7 +48,8 @@ export class ToolRegistry {
 export function installApprovalGuard(ctx, { autoApprove }) {
   const guarded = new Set(["write_file", "bash"]);
   return ctx.on("tools/pre-execute", async (req, next) => {
-    if (guarded.has(req.name) && !autoApprove) req.denied = `${req.name} requires --yes / CW_AUTO_APPROVE=true`;
+    const approved = typeof autoApprove === "object" ? autoApprove.current : autoApprove;
+    if (guarded.has(req.name) && !approved) req.denied = `${req.name} requires approval (--yes / CW_AUTO_APPROVE=true / Web approve toggle)`;
     return next(req);
   }, "waterfall");
 }
