@@ -124,9 +124,9 @@ export function createWebServer({ ctx, store, approval, token }) {
         const projectId = url.searchParams.get("projectId");
         if (projectId) {
           try {
-            const dir = realpathSync(ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined));
             const { readdirSync, realpathSync } = await import("node:fs");
             const { resolve: res2, sep: sep2 } = await import("node:path");
+            const dir = realpathSync(ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined));
             const abs = realpathSync(res2(dir, sub));
             if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
             const entries = readdirSync(abs, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() }));
