@@ -175,7 +175,24 @@ async function refreshProjects() {
     `<option value="">（无 Project，全局 workspace）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
   refreshAgents();
+  refreshRepos();
 }
+async function refreshRepos() {
+  const pid = $("#project-picker").value;
+  $("#repo-picker").innerHTML = `<option value="">（默认 Repo）</option>`;
+  if (!pid) return;
+  const p = await (await fetch(api(`/projects/${encodeURIComponent(pid)}`))).json();
+  $("#repo-picker").innerHTML += (p.repos ?? []).map((r) => `<option value="${escAttr(r)}">${esc(r)}</option>`).join("");
+}
+$("#add-repo").onclick = async () => {
+  const pid = $("#project-picker").value;
+  if (!pid) return alert("先选 Project");
+  const choice = prompt("仓库名（新建空目录），或填已有目录的绝对路径（导入）：", "new-repo");
+  if (!choice) return;
+  const body = choice.startsWith("/") ? { importFrom: choice } : { name: choice };
+  await fetch(api(`/projects/${encodeURIComponent(pid)}/repos`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  refreshProjects();
+};
 async function refreshAgents() {
   const pid = $("#project-picker").value;
   $("#agent-picker").innerHTML = `<option value="">（默认 Agent）</option>`;
@@ -195,7 +212,8 @@ $("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refresh
 $("#new-session").onclick = async () => {
   const projectId = $("#project-picker").value || undefined;
   const agent = $("#agent-picker").value || undefined;
-  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent }) })).json();
+  const repo = $("#repo-picker").value || undefined;
+  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent, repo }) })).json();
   selectSession(id);
 };
 

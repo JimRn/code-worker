@@ -1,7 +1,7 @@
 // Projects (P1): project-level management with strict isolation.
 // Layout: <projectsDir>/<id>/{project.json, AGENTS.md, docs/, skills/, agents/, outputs/, repos/<repo>/}
 // Env: CW_PROJECTS_DIR overrides the location (default ~/.code-worker/projects).
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -51,6 +51,21 @@ export class ProjectStore {
     if (!p) throw new Error(`Project not found: ${projectId}`);
     const name = String(repoName || "main").replace(/[^\w.\- ]/g, "_").slice(0, 60) || "main";
     mkdirSync(join(p.dir, "repos", name), { recursive: true });
+    if (!p.repos.includes(name)) {
+      p.repos.push(name);
+      writeFileSync(join(p.dir, "project.json"), JSON.stringify({ id: p.id, name: p.name, createdAt: p.createdAt, repos: p.repos }, null, 2));
+    }
+    return name;
+  }
+  /** Import an existing local directory as a repo (recursive copy). */
+  importRepo(projectId, srcDir) {
+    const p = this.get(projectId);
+    if (!p) throw new Error(`Project not found: ${projectId}`);
+    if (!existsSync(srcDir) || !statSync(srcDir).isDirectory()) throw new Error("source is not a directory");
+    const base = srcDir.split("/").filter(Boolean).pop() || "repo";
+    const name = String(base).replace(/[^\w.\- ]/g, "_").slice(0, 60);
+    const dest = join(p.dir, "repos", name);
+    cpSync(srcDir, dest, { recursive: true, dereference: false });
     if (!p.repos.includes(name)) {
       p.repos.push(name);
       writeFileSync(join(p.dir, "project.json"), JSON.stringify({ id: p.id, name: p.name, createdAt: p.createdAt, repos: p.repos }, null, 2));

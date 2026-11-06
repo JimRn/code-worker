@@ -25,7 +25,23 @@ export function registerProjectRoutes(app) {
   app.route("POST", /^\/api\/projects\/([\w-]+)\/repos$/, async (req, res, m) => {
     const body = await readBody(req);
     if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
+    const { homedir, tmpdir } = await import("node:os");
+    if (body.importFrom) {
+      // Import an existing local directory (allowlisted roots only, like workspace switch).
+      const { existsSync, statSync, realpathSync } = await import("node:fs");
+      const { resolve, sep } = await import("node:path");
+      if (!existsSync(body.importFrom) || !statSync(body.importFrom).isDirectory()) return sendJson(res, 400, { error: "source is not a directory" });
+      const abs = realpathSync(body.importFrom);
+      const allowed = [projects().dir, homedir(), tmpdir()].some((r) => abs === r || abs.startsWith(r + sep));
+      if (!allowed) return sendJson(res, 403, { error: "source outside allowed roots" });
+      return sendJson(res, 201, { repo: projects().importRepo(m[1], abs) });
+    }
     sendJson(res, 201, { repo: projects().addRepo(m[1], body.name) });
+  });
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/outputs$/, async (req, res, m) => {
+    if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
+    const { listOutputs } = await import("../outputs.js");
+    sendJson(res, 200, { outputs: listOutputs(projects(), m[1]) });
   });
   app.route("GET", /^\/api\/projects\/([\w-]+)\/agents$/, async (req, res, m) => {
     if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
