@@ -31,8 +31,69 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+let currentTurn = null; // {el, startTs, tools: Map<callId, blockEl>}
+function closeTurn(ts) {
+  if (!currentTurn) return;
+  const secs = Math.max(1, Math.round((ts - currentTurn.startTs) / 1000));
+  currentTurn.el.querySelector(".turn-label").textContent = `已完成，用时 ${secs} 秒`;
+  currentTurn.el.classList.add("done");
+  currentTurn = null;
+}
+
 function renderEvent(ev) {
   const box = $("#messages");
+  // Turn grouping: tool/reasoning blocks collapse under a turn header.
+  if (ev.type === "turn/start") {
+    const turn = document.createElement("div");
+    turn.className = "turn-group";
+    turn.innerHTML = `<button class="turn-head"><span class="turn-label">运行中…</span> <span class="chev">⌃</span></button><div class="turn-body"></div>`;
+    turn.querySelector(".turn-head").onclick = () => turn.classList.toggle("collapsed");
+    box.appendChild(turn);
+    currentTurn = { el: turn, startTs: ev.ts, tools: new Map() };
+    return;
+  }
+  if (ev.type === "turn/end") { closeTurn(ev.ts); return; }
+  if (ev.type === "tool/call") {
+    const host = currentTurn ? currentTurn.el.querySelector(".turn-body") : box;
+    const block = document.createElement("div");
+    block.className = "tool-block";
+    block.innerHTML = `<button class="tb-head">⌃ 运行命令 · ${esc(ev.data.name)}</button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
+    block.querySelector(".tb-head").onclick = () => block.classList.toggle("collapsed");
+    block.querySelector(".tb-copy").onclick = (e) => { navigator.clipboard?.writeText(JSON.stringify(ev.data.args)); e.target.textContent = "已复制"; };
+    host.appendChild(block);
+    currentTurn?.tools.set(ev.data.callId, block);
+    return;
+  }
+  if (ev.type === "tool/result") {
+    const block = currentTurn?.tools.get(ev.data.callId);
+    if (block) {
+      block.querySelector(".tb-out").textContent = ev.data.output;
+      if (ev.data.isError) block.classList.add("error");
+      return;
+    }
+    // fallback: standalone result
+    const div = document.createElement("div");
+    div.className = "msg tool";
+    div.innerHTML = `<div class="toolhead">→ ${esc(ev.data.name)}${ev.data.isError ? " ⚠" : ""}</div><pre>${esc(ev.data.output)}</pre>`;
+    box.appendChild(div);
+    return;
+  }
+  if (ev.type === "assistant/reasoning") {
+    let bubble = document.getElementById("reasoning-stream");
+    if (!bubble) {
+      bubble = document.createElement("div");
+      bubble.id = "reasoning-stream";
+      bubble.className = "msg reasoning";
+      bubble.innerHTML = `<button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre></pre></div>`;
+      bubble.querySelector(".tb-head").onclick = () => bubble.classList.toggle("collapsed");
+      (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(bubble);
+      bubble._raw = "";
+    }
+    bubble._raw += ev.data.delta;
+    bubble.querySelector("pre").textContent = bubble._raw;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
   // Per-call approval request (live-only).
   if (ev.type === "approval/request") {
     const card = document.createElement("div");
@@ -62,19 +123,21 @@ function renderEvent(ev) {
     box.scrollTop = box.scrollHeight;
     return;
   }
-  document.getElementById("streaming")?.remove();
+  document.getElementById("reasoning-stream")?.remove();
   const div = document.createElement("div");
-  if (ev.type === "user/message") { div.className = "msg user"; div.textContent = ev.data.text; }
+  if (ev.type === "user/message") {
+    div.className = "msg user";
+    div.innerHTML = `${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
+    div.querySelector(".copy").onclick = () => navigator.clipboard?.writeText(ev.data.text);
+  }
   else if (ev.type === "assistant/message") {
     div.className = "msg assistant";
-    div.innerHTML = mdToHtml(ev.data.text || "") +
-      (ev.data.toolCalls?.length ? `<div class="toolcalls">${ev.data.toolCalls.map((t) =>
-        `<div class="toolcall"><div class="toolhead">🔧 ${esc(t.name)}</div><pre>${esc(JSON.stringify(t.args, null, 2))}</pre></div>`).join("")}</div>` : "") +
+    div.innerHTML =
+      (ev.data.reasoning ? `<div class="reasoning-done"><button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre>${esc(ev.data.reasoning)}</pre></div></div>` : "") +
+      mdToHtml(ev.data.text || "") +
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
+    div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
     if (ev.data.usage) updateUsage();
-  } else if (ev.type === "tool/result") {
-    div.className = "msg tool";
-    div.innerHTML = `<div class="toolhead">→ ${esc(ev.data.name)}${ev.data.isError ? " ⚠" : ""}</div><pre>${esc(ev.data.output)}</pre>`;
   }
   else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
@@ -102,6 +165,7 @@ async function updateUsage() {
 function openStream(id) {
   stream?.close();
   $("#messages").innerHTML = "";
+  currentTurn = null;
   stream = new EventSource(api(`/sessions/${id}/stream`));
   stream.onopen = () => { $("#conn").textContent = "● 已连接"; $("#conn").style.color = "#3fb950"; };
   stream.onerror = () => { $("#conn").textContent = "○ 连接中断，重试中…"; $("#conn").style.color = "#d29922"; };

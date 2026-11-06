@@ -39,6 +39,9 @@ export class AgentLoop {
               result.text += chunk.delta;
               onText?.(chunk.delta);
               session.broadcastLive("assistant/chunk", { delta: chunk.delta });
+            } else if (chunk.type === "reasoning") {
+              result.reasoning = (result.reasoning ?? "") + chunk.delta;
+              session.broadcastLive("assistant/reasoning", { delta: chunk.delta });
             } else if (chunk.type === "finish") {
               result = chunk;
             }
@@ -48,7 +51,7 @@ export class AgentLoop {
           await session.append("step/end", { step, error: err.message });
           break;
         }
-        await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined });
+        await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined, reasoning: result.reasoning ?? undefined });
         if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
         for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
         const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId });

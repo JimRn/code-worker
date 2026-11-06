@@ -68,6 +68,7 @@ export class OpenAICompatibleAdapter {
       if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
       let usage = null;
       let text = "";
+      let reasoning = "";
       const tcByIndex = new Map();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -85,6 +86,7 @@ export class OpenAICompatibleAdapter {
           if (json.usage) usage = json.usage;
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
+          if (delta.reasoning_content) { reasoning += delta.reasoning_content; yield { type: "reasoning", delta: delta.reasoning_content }; }
           if (delta.content) { text += delta.content; yield { type: "text", delta: delta.content }; }
           for (const [j, tc] of (delta.tool_calls ?? []).entries()) {
             // Providers that omit `index` would collide on key `undefined`; fall back to position.
@@ -102,7 +104,7 @@ export class OpenAICompatibleAdapter {
         try { args = JSON.parse(t.arguments || "{}"); } catch { throw new Error(`invalid tool arguments JSON: ${t.arguments}`); }
         return { id: t.id, name: t.name, args };
       });
-      yield { type: "finish", text, toolCalls, usage };
+      yield { type: "finish", text, toolCalls, usage, reasoning: reasoning || undefined };
     };
   }
 }
