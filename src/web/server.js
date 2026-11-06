@@ -120,6 +120,21 @@ export function createWebServer({ ctx, store, approval, token }) {
       if (url.pathname === "/api/workspace" && req.method === "GET") {
         const fs = ctx.require("fs");
         const sub = url.searchParams.get("path") || ".";
+        // Project-scoped browsing: list inside the project's repo, not the global workspace.
+        const projectId = url.searchParams.get("projectId");
+        if (projectId) {
+          try {
+            const dir = ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined);
+            const { readdirSync, realpathSync, statSync } = await import("node:fs");
+            const { resolve: res2, sep: sep2 } = await import("node:path");
+            const abs = realpathSync(res2(dir, sub));
+            if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
+            const entries = readdirSync(abs, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() }));
+            return sendJson(res, 200, { root: dir, path: sub, entries });
+          } catch (err) {
+            return sendJson(res, 400, { error: err.message });
+          }
+        }
         try {
           const entries = await fs.listEntries(sub);
           return sendJson(res, 200, { root: fs.root, path: sub, entries });

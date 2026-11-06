@@ -182,7 +182,7 @@ $("#new-project").onclick = async () => {
   await refreshProjects();
   refreshSessions();
 };
-$("#project-picker").onchange = () => refreshSessions();
+$("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refreshWorkspace(); };
 
 $("#new-session").onclick = async () => {
   const projectId = $("#project-picker").value || undefined;
@@ -251,7 +251,8 @@ $("#test-settings").onclick = async () => {
 // --- Workspace browser ---
 let wsPath = ".";
 async function refreshWorkspace() {
-  const r = await (await fetch(api(`/workspace?path=${encodeURIComponent(wsPath)}`))).json();
+  const pid = $("#project-picker").value;
+  const r = await (await fetch(api(`/workspace?path=${encodeURIComponent(wsPath)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
   $("#ws-root").textContent = r.root || "";
   $("#ws-list").innerHTML =
     (wsPath !== "." ? `<li data-up="1">📁 ..</li>` : "") +
