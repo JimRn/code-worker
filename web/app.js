@@ -11,6 +11,46 @@ const api = (path) => `/api${path}${TOKEN ? `${path.includes("?") ? "&" : "?"}to
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 const escAttr = (t) => esc(t).replace(/"/g, "&quot;");
 
+// --- Minimal Markdown (zero-dep): fenced code (+copy), headings, bold, inline
+// code, links (http/https only), lists, paragraphs. Input is escaped first. ---
+const codeBlocks = [];
+function mdToHtml(text) {
+  codeBlocks.length = 0;
+  let html = esc(text);
+  html = html.replace(/```(\w*)\n([\s\S]*?)(?:```|$)/g, (_, lang, code) => {
+    codeBlocks.push({ lang, code });
+    return `\u0000${codeBlocks.length - 1}\u0000`;
+  });
+  html = html
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  const lines = html.split("\n");
+  let out = "", inList = false;
+  for (const line of lines) {
+    const m = line.match(/^\s*[-*] (.*)$/);
+    if (m) { if (!inList) { out += "<ul>"; inList = true; } out += `<li>${m[1]}</li>`; continue; }
+    if (inList) { out += "</ul>"; inList = false; }
+    if (/^\u0000\d+\u0000$/.test(line.trim())) { out += line; continue; }
+    out += line.trim() ? `<p>${line}</p>` : "";
+  }
+  if (inList) out += "</ul>";
+  return out.replace(/\u0000(\d+)\u0000/g, (_, i) => {
+    const { lang, code } = codeBlocks[i];
+    return `<div class="codeblock"><div class="codehead"><span>${esc(lang || "text")}</span><button class="copy" data-i="${i}">复制</button></div><pre><code>${esc(code)}</code></pre></div>`;
+  });
+}
+// Copy delegation (event delegation, survives re-renders).
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".copy");
+  if (!btn) return;
+  const code = document.querySelectorAll(".codeblock code")[+btn.dataset.i]?.textContent ?? "";
+  navigator.clipboard?.writeText(code).then(() => { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制"), 1200); });
+});
+
 function renderEvent(ev) {
   const box = $("#messages");
   // Per-call approval request (live-only).
@@ -27,7 +67,7 @@ function renderEvent(ev) {
     box.scrollTop = box.scrollHeight;
     return;
   }
-  // Live stream chunk: append to the streaming bubble (removed when the durable message lands).
+  // Live stream chunk: re-render markdown incrementally (removed when the durable message lands).
   if (ev.type === "assistant/chunk") {
     let bubble = document.getElementById("streaming");
     if (!bubble) {
@@ -35,8 +75,10 @@ function renderEvent(ev) {
       bubble.id = "streaming";
       bubble.className = "msg assistant streaming";
       box.appendChild(bubble);
+      bubble._raw = "";
     }
-    bubble.textContent += ev.data.delta;
+    bubble._raw += ev.data.delta;
+    bubble.innerHTML = mdToHtml(bubble._raw);
     box.scrollTop = box.scrollHeight;
     return;
   }
@@ -45,11 +87,15 @@ function renderEvent(ev) {
   if (ev.type === "user/message") { div.className = "msg user"; div.textContent = ev.data.text; }
   else if (ev.type === "assistant/message") {
     div.className = "msg assistant";
-    div.innerHTML = esc(ev.data.text || "(tool call)") +
-      (ev.data.toolCalls?.length ? `<div>${ev.data.toolCalls.map((t) => `🔧 ${esc(t.name)}(${esc(JSON.stringify(t.args))})`).join("<br>")}</div>` : "") +
+    div.innerHTML = mdToHtml(ev.data.text || "") +
+      (ev.data.toolCalls?.length ? `<div class="toolcalls">${ev.data.toolCalls.map((t) =>
+        `<div class="toolcall"><div class="toolhead">🔧 ${esc(t.name)}</div><pre>${esc(JSON.stringify(t.args, null, 2))}</pre></div>`).join("")}</div>` : "") +
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
     if (ev.data.usage) updateUsage();
-  } else if (ev.type === "tool/result") { div.className = "msg tool"; div.textContent = `→ ${ev.data.name}: ${ev.data.output}`; }
+  } else if (ev.type === "tool/result") {
+    div.className = "msg tool";
+    div.innerHTML = `<div class="toolhead">→ ${esc(ev.data.name)}${ev.data.isError ? " ⚠" : ""}</div><pre>${esc(ev.data.output)}</pre>`;
+  }
   else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
   else if (ev.type === "todo/write") { renderTodos(ev.data.todos); return; }

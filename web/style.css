@@ -14,7 +14,20 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .msg { max-width:80%; padding:10px 14px; border-radius:10px; white-space:pre-wrap; }
 .msg.user { align-self:flex-end; background:#1f6feb; }
 .msg.assistant { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
-.msg.tool { align-self:flex-start; background:#21262d; border:1px solid var(--line); font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+.msg.tool { align-self:flex-start; background:#21262d; border:1px solid var(--line); font-size:12px; }
+.msg.tool pre, .toolcall pre { margin:6px 0 0; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,monospace; font-size:12px; color:var(--muted); }
+.codeblock { background:#0d1117; border:1px solid var(--line); border-radius:8px; margin:8px 0; overflow:hidden; }
+.codehead { display:flex; justify-content:space-between; align-items:center; padding:4px 10px; background:#161b22; font-size:11px; color:var(--muted); }
+.codehead .copy { background:transparent; border:1px solid var(--line); color:var(--text); border-radius:5px; padding:2px 10px; font-size:11px; cursor:pointer; }
+.codeblock pre { margin:0; padding:10px; overflow:auto; }
+.codeblock code { font-family:ui-monospace,monospace; font-size:12px; }
+.toolcalls { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.toolcall { background:#0d1117; border:1px solid #1f6feb66; border-radius:8px; padding:8px 10px; }
+.toolhead { font-weight:600; font-size:12px; color:var(--accent); }
+.msg.assistant h1, .msg.assistant h2, .msg.assistant h3 { margin:8px 0 4px; }
+.msg.assistant p { margin:4px 0; }
+.msg.assistant code { background:#21262d; padding:1px 5px; border-radius:4px; font-size:12px; }
+.msg.assistant ul { margin:4px 0; padding-left:20px; }
 .msg.system { align-self:center; color:var(--muted); font-size:12px; }
 .msg.streaming { opacity:.85; border-style:dashed; }
 .msg.approval { align-self:center; background:#3a2b00; border:1px solid #d29922; }
