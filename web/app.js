@@ -124,6 +124,7 @@ function renderEvent(ev) {
     return;
   }
   document.getElementById("reasoning-stream")?.remove();
+  document.getElementById("streaming")?.remove();
   const div = document.createElement("div");
   if (ev.type === "user/message") {
     div.className = "msg user";
@@ -131,6 +132,8 @@ function renderEvent(ev) {
     div.querySelector(".copy").onclick = () => navigator.clipboard?.writeText(ev.data.text);
   }
   else if (ev.type === "assistant/message") {
+    // Tool-only steps have no visible text: tools already render as blocks.
+    if (!ev.data.text && !ev.data.reasoning) { if (ev.data.usage) updateUsage(); return; }
     div.className = "msg assistant";
     div.innerHTML =
       (ev.data.reasoning ? `<div class="reasoning-done"><button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre>${esc(ev.data.reasoning)}</pre></div></div>` : "") +
