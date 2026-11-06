@@ -1,6 +1,7 @@
 // AgentLoop: default driver. Turn = 0..N Steps; Step = 1 model request + its tools.
 // Vertical features live in plugins (compaction service, project isolation,
 // title generator); the loop only orchestrates Turn/Step via ctx services/events.
+import { sessionScope } from "./session.js";
 export class AgentLoop {
   constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "openai-compatible", model, config } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
@@ -11,9 +12,8 @@ export class AgentLoop {
     const ctx = this.ctx;
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
     const compaction = ctx.get("compaction");
-    ctx.provide("currentSession", session); // for plugins needing the live session (prompts)
     const isolate = ctx.get("isolate") ?? ((_s, fn) => fn());
-    return isolate(session, async () => {
+    return isolate(session, () => sessionScope.run(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
       const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
@@ -59,7 +59,7 @@ export class AgentLoop {
       await session.append("turn/end", {});
       await ctx.serial("turn/ended", { session });
       return session.deriveMessages();
-    });
+    }));
   }
   /** agent.inject(): lands in the next admitted request as a logged user/message. */
   async inject(session, text) { return session.append("user/message", { text: `(injected) ${text}` }); }

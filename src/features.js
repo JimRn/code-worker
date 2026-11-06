@@ -1,6 +1,7 @@
 // Vertical features extracted from AgentLoop (loop slimming):
 // project isolation, title generation, compaction service.
 import { pruneToolResults, estimateChars, summarizeMessages } from "./compaction.js";
+import { sessionScope } from "./session.js";
 
 /** Compaction service: prune (model-free) + summarize when over budget. */
 export class CompactionService {
@@ -31,7 +32,7 @@ export class CompactionService {
 export function installProjectIsolation(ctx) {
   // Inject project instructions into the system prompt every turn.
   ctx.on("system-prompt/assemble", async (base, next) => {
-    const session = ctx.get("currentSession");
+    const session = sessionScope.getStore();
     const projects = ctx.get("projects");
     const extra = session?.binding?.projectId && projects ? projects.instructions(session.binding.projectId) : "";
     return next(extra ? `${base}\n\n## Project instructions (AGENTS.md)\n${extra}` : base);

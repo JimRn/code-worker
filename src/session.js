@@ -4,6 +4,10 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usageTotals as deriveUsageTotals } from "./session-views.js";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+/** Per-turn live session scope (replaces the mutable ctx.currentSession slot). */
+export const sessionScope = new AsyncLocalStorage();
 
 export const SESSION_FORMAT_VERSION = 1;
 

@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Context } from "./context.js";
 import { PLUGINS } from "./plugins.js";
+import { SettingsStore } from "./web/settings.js";
 
 export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl, home } = {}) {
   const profile = JSON.parse(readFileSync(profilePath, "utf8"));
@@ -21,6 +22,12 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     model: model ?? env("MODEL") ?? undefined,
   };
 
+  // Settings constructed once, up front; seeds model config fallbacks.
+  const settings = new SettingsStore(profile.home ?? ".code-worker");
+  modelConfig.apiKey ??= settings.getApiKey();
+  modelConfig.baseUrl ??= settings.getConfig().baseUrl;
+  modelConfig.model ??= settings.getConfig().model;
+
   const sharedEnv = {
     home: profile.home ?? ".code-worker",
     projectsDir: join(profile.home ?? ".code-worker", "projects"),
@@ -34,15 +41,7 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     guardedTools: cfg.guardedTools ?? ["write_file", "bash"],
     shellTimeoutMs: cfg.shellTimeoutMs ?? 30000,
     approvalTimeoutMs: cfg.approvalTimeoutMs ?? 30000,
-    settings: null, // filled below (settings seeded before llm config fallback)
   };
-  // Settings-seeded fallback for model config (persisted Web settings win over env blanks).
-  const { SettingsStore } = await import("./web/settings.js");
-  const settings = new SettingsStore(sharedEnv.home);
-  sharedEnv.settings = settings;
-  modelConfig.apiKey ??= settings.getApiKey();
-  modelConfig.baseUrl ??= settings.getConfig().baseUrl;
-  modelConfig.model ??= settings.getConfig().model;
 
   for (const name of profile.plugins ?? Object.keys(PLUGINS)) {
     const plugin = PLUGINS[name];
