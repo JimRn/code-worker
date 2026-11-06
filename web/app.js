@@ -1,5 +1,7 @@
 // Browser client: renders the conversation from session/event stream (SSE),
 // like DSH's Web Session-follow adapter. No framework, zero deps.
+import { mdToHtml, esc, escAttr } from "./md.js";
+
 const $ = (s) => document.querySelector(s);
 let currentId = null;
 let stream = null;
@@ -8,47 +10,25 @@ const TOKEN = new URLSearchParams(location.search).get("token") ?? localStorage.
 if (TOKEN) localStorage.setItem("cw-token", TOKEN);
 const api = (path) => `/api${path}${TOKEN ? `${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(TOKEN)}` : ""}`;
 
-const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-const escAttr = (t) => esc(t).replace(/"/g, "&quot;");
-
-// --- Minimal Markdown (zero-dep): fenced code (+copy), headings, bold, inline
-// code, links (http/https only), lists, paragraphs. Input is escaped first. ---
-const codeBlocks = [];
-function mdToHtml(text) {
-  codeBlocks.length = 0;
-  let html = esc(text);
-  html = html.replace(/```(\w*)\n([\s\S]*?)(?:```|$)/g, (_, lang, code) => {
-    codeBlocks.push({ lang, code });
-    return `\u0000${codeBlocks.length - 1}\u0000`;
-  });
-  html = html
-    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
-    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  const lines = html.split("\n");
-  let out = "", inList = false;
-  for (const line of lines) {
-    const m = line.match(/^\s*[-*] (.*)$/);
-    if (m) { if (!inList) { out += "<ul>"; inList = true; } out += `<li>${m[1]}</li>`; continue; }
-    if (inList) { out += "</ul>"; inList = false; }
-    if (/^\u0000\d+\u0000$/.test(line.trim())) { out += line; continue; }
-    out += line.trim() ? `<p>${line}</p>` : "";
-  }
-  if (inList) out += "</ul>";
-  return out.replace(/\u0000(\d+)\u0000/g, (_, i) => {
-    const { lang, code } = codeBlocks[i];
-    return `<div class="codeblock"><div class="codehead"><span>${esc(lang || "text")}</span><button class="copy" data-i="${i}">复制</button></div><pre><code>${esc(code)}</code></pre></div>`;
-  });
-}
-// Copy delegation (event delegation, survives re-renders).
-document.addEventListener("click", (e) => {
+// Copy delegation (event delegation, survives re-renders). Finds the code in
+// the SAME codeblock (page-wide monotonic data-block id), with fallback.
+document.addEventListener("click", async (e) => {
   const btn = e.target.closest(".copy");
   if (!btn) return;
-  const code = document.querySelectorAll(".codeblock code")[+btn.dataset.i]?.textContent ?? "";
-  navigator.clipboard?.writeText(code).then(() => { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制"), 1200); });
+  const code = btn.closest(".codeblock")?.querySelector("code")?.textContent ?? "";
+  const done = () => { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制"), 1200); };
+  try {
+    await navigator.clipboard.writeText(code);
+    done();
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = code;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+    done();
+  }
 });
 
 function renderEvent(ev) {
