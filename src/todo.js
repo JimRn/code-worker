@@ -1,0 +1,49 @@
+// Todo (mirrors DSH todo/tool-todo): model-facing todo_write replaces the
+// session's whole list; durable `todo/write` event is log-only (UI state,
+// replayed from the log, never sent to the model as history).
+const STATUSES = new Set(["pending", "in_progress", "completed"]);
+
+/** Validate + normalize a whole-list write. */
+export function validateTodos(todos) {
+  if (!Array.isArray(todos)) throw new Error("todos must be an array");
+  if (todos.length > 50) throw new Error("at most 50 todo items");
+  return todos.map((t) => {
+    if (!t?.content || typeof t.content !== "string") throw new Error("each todo needs a content string");
+    const status = t.status ?? "pending";
+    if (!STATUSES.has(status)) throw new Error(`invalid status: ${status}`);
+    return { content: t.content.slice(0, 200), status };
+  });
+}
+
+/** Consumer: registers the todo_write tool on ctx.tools. */
+export function registerTodoTools(ctx) {
+  const tools = ctx.require("tools");
+  ctx.effect(() => tools.register({
+    name: "todo_write",
+    description: "Replace the session todo list (whole-list snapshot). Call at task start and update statuses as you work.",
+    schema: {
+      type: "object",
+      properties: {
+        todos: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              content: { type: "string" },
+              status: { type: "string", enum: ["pending", "in_progress", "completed"] },
+            },
+            required: ["content"],
+          },
+        },
+      },
+      required: ["todos"],
+    },
+    execute: async ({ todos }, req) => {
+      const list = validateTodos(todos);
+      if (!req.session) throw new Error("todo_write requires a session");
+      await req.session.append("todo/write", { todos: list });
+      const done = list.filter((t) => t.status === "completed").length;
+      return `todos updated: ${done}/${list.length} completed`;
+    },
+  }));
+}

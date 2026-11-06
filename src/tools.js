@@ -7,7 +7,7 @@ export class ToolRegistry {
     ctx.on("tools/execute", async (req) => {
       const tool = this.tools.get(req.name);
       if (!tool) throw new Error(`unknown tool ${req.name}`);
-      return tool.execute(req.args);
+      return tool.execute(req.args, req);
     }, "waterfall");
   }
   register(tool) {
@@ -23,12 +23,12 @@ export class ToolRegistry {
       function: { name: t.name, description: t.description, parameters: t.schema ?? { type: "object", properties: {} } },
     }));
   }
-  async execute(calls, { maxBytes = 20000, sessionId } = {}) {
+  async execute(calls, { maxBytes = 20000, sessionId, session } = {}) {
     const results = [];
     for (const call of calls) {
       const tool = this.tools.get(call.name);
       if (!tool) { results.push({ callId: call.id, name: call.name, output: `Error: unknown tool ${call.name}`, isError: true }); continue; }
-      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId };
+      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, session };
       req = await this.ctx.waterfall("tools/pre-execute", req);
       if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
       let output;

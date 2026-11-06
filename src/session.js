@@ -61,6 +61,13 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
+  /** Latest todo list from todo/write events (log-only durable state). */
+  todos() {
+    for (let i = this.events.length - 1; i >= 0; i--) {
+      if (this.events[i].type === "todo/write") return this.events[i].data.todos;
+    }
+    return [];
+  }
   /** Sum of token usage across assistant messages (provider-reported). */
   usageTotals() {
     let prompt = 0, completion = 0;
