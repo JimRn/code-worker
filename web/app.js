@@ -278,6 +278,73 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+
+// --- Trace view (DeepSeek-style): timeline + compact rows + detail panel ---
+let viewMode = "chat";
+document.querySelectorAll("#view-tabs button").forEach((b) => (b.onclick = () => {
+  viewMode = b.dataset.view;
+  document.querySelectorAll("#view-tabs button").forEach((x) => x.classList.toggle("active", x === b));
+  $("#trace-view").hidden = viewMode !== "trace";
+  $("#messages").style.display = viewMode === "trace" ? "none" : "";
+  if (viewMode === "trace") renderTrace();
+}));
+
+const BADGE = { "user/message": ["用户", "user"], "assistant/message": ["助手", "assistant"], "tool/call": ["工具", "tool"], "tool/result": ["工具", "tool"], "system/message": ["上下文", "system"] };
+
+async function renderTrace() {
+  if (!currentId) return;
+  const snap = await (await fetch(api(`/sessions/${currentId}`))).json();
+  const events = snap.events ?? [];
+  const q = ($("#trace-search").value || "").toLowerCase();
+  // timeline: proportional lanes from timestamps
+  const ts = events.map((e) => e.ts).filter(Boolean);
+  const t0 = Math.min(...ts, 0), t1 = Math.max(...ts, 1), span = Math.max(1, t1 - t0);
+  const lane = (types) => events.filter((e) => types.includes(e.type)).map((e) =>
+    `<span class="tl" style="left:${((e.ts - t0) / span * 100).toFixed(1)}%"></span>`).join("");
+  $("#timeline").innerHTML =
+    `<div class="tl-row"><span>输入</span><div class="tl-track">${lane(["user/message"])}</div></div>` +
+    `<div class="tl-row"><span>模型</span><div class="tl-track">${lane(["assistant/message", "assistant/attempt"])}</div></div>` +
+    `<div class="tl-row"><span>工具</span><div class="tl-track">${lane(["tool/call", "tool/result"])}</div></div>`;
+  // compact rows
+  const rows = [];
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    const badge = BADGE[ev.type];
+    if (!badge) continue;
+    let summary = "";
+    if (ev.type === "user/message") summary = ev.data.text;
+    else if (ev.type === "assistant/message") summary = ev.data.text || "（仅工具调用）";
+    else if (ev.type === "tool/call") summary = `${ev.data.name} ${JSON.stringify(ev.data.args)}`;
+    else if (ev.type === "tool/result") summary = `${ev.data.name ?? "tool"} → ${String(ev.data.output).slice(0, 80)}`;
+    else if (ev.type === "system/message") summary = ev.data.text;
+    if (q && !summary.toLowerCase().includes(q)) continue;
+    rows.push(`<div class="trace-row" data-i="${i}"><span class="badge ${badge[1]}">${badge[0]}</span><span class="tr-summary">${esc(summary)}</span></div>`);
+  }
+  $("#trace-list").innerHTML = rows.join("");
+  document.querySelectorAll(".trace-row").forEach((el) => (el.onclick = () => showTraceDetail(events[+el.dataset.i], events)));
+}
+
+function showTraceDetail(ev, events) {
+  $("#trace-detail").hidden = false;
+  $("#td-title").textContent = ev.type === "tool/call" || ev.type === "tool/result" ? `${ev.data.name ?? "tool"}` : ev.type;
+  const result = ev.type === "tool/call" ? events.find((e, j) => j > events.indexOf(ev) && e.type === "tool/result" && e.data.callId === ev.data.callId) : null;
+  const dur = result ? result.ts - ev.ts : null;
+  const tabs = {
+    overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div>`,
+    args: `<pre>${esc(JSON.stringify(ev.data.args ?? {}, null, 2))}</pre>`,
+    result: `<pre>${esc(result ? String(result.data.output) : "（无结果）")}</pre>`,
+    schema: `<b>${esc(ev.data.name ?? "")}</b><pre>${esc(ev.data.name === "bash" ? "Execute a bash command: runs in the workspace cwd." : ev.data.name === "read_file" ? "Read a UTF-8 file inside the workspace." : ev.data.name === "write_file" ? "Write a UTF-8 file inside the workspace." : ev.data.name === "list_dir" ? "List a directory inside the workspace." : "Tool schema")}
+</pre>`,
+    timing: `<div class="td-kv"><span>开始时间</span><b>${new Date(ev.ts).toISOString()}</b></div><div class="td-kv"><span>时长</span><b>${dur != null ? `${dur} 毫秒` : "—"}</b></div>`,
+  };
+  $("#td-body").innerHTML = tabs.overview;
+  document.querySelectorAll(".td-tabs button").forEach((b) => (b.onclick = () => {
+    document.querySelectorAll(".td-tabs button").forEach((x) => x.classList.toggle("active", x === b));
+    $("#td-body").innerHTML = tabs[b.dataset.t];
+  }));
+}
+$("#td-close").onclick = () => { $("#trace-detail").hidden = true; };
+$("#trace-search").oninput = () => renderTrace();
 $("#open-files").onclick = (e) => { e.preventDefault(); $("#file-panel").hidden = false; };
 $("#fp-close").onclick = () => { $("#file-panel").hidden = true; };
 $("#fp-refresh").onclick = () => refreshWorkspace();
