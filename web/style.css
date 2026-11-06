@@ -33,8 +33,12 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .msg.approval { align-self:center; background:#3a2b00; border:1px solid #d29922; }
 .msg.approval button { padding:2px 10px; margin-left:4px; }
 .usage { color:var(--muted); font-size:11px; margin-top:6px; }
-#composer { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
-#input { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; resize:none; }
+#composer { display:flex; gap:10px; align-items:stretch; padding:12px 16px; border-top:1px solid var(--line); background:var(--bg); }
+#model-picker { width:220px; flex:none; background:#fff; color:#111; border:1px solid #555; border-radius:6px; padding:0 10px; font-size:14px; cursor:pointer; }
+#input { flex:1; background:#161b22; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:12px 14px; resize:none; font-size:14px; }
+#input::placeholder { color:var(--muted); }
+#composer button[type="submit"] { flex:none; background:#2f6feb; color:#fff; border:0; border-radius:8px; padding:0 28px; font-size:15px; cursor:pointer; }
+#composer button[type="submit"]:hover { background:#3b7bff; }
 button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 18px; cursor:pointer; }
 #new-session { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
 #open-settings { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
