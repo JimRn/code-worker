@@ -119,6 +119,13 @@ export class MockAdapter {
     if (hasToolResult) {
       const toolMsg = [...messages].reverse().find((m) => m.role === "tool")?.content ?? "";
       text = `Done. Tool output:\n${toolMsg}`;
+    } else if (/todo|计划|任务/i.test(lastUser)) {
+      text = "";
+      toolCalls = [{
+        id: "mock-todo",
+        name: "todo_write",
+        args: { todos: [{ content: "调研代码结构", status: "in_progress" }, { content: "实现功能", status: "pending" }, { content: "测试验证", status: "pending" }] },
+      }];
     } else if (/list|ls|文件|目录/i.test(lastUser)) {
       text = "";
       toolCalls = [{ id: "mock-1", name: "list_dir", args: { path: "." } }];
