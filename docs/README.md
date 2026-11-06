@@ -12,8 +12,9 @@
 
 ## 速览
 
-- **定位**：个人版 DeepSeek Harness（mini-Cordis），零依赖，仅 Node ≥ 20 内置，约 1900 行（持续增长）。
-- **核心**：`Context`（服务注册 + 类型化事件） + `Session`（append-only 日志，唯一事实源） + 三段式能力缝（Definition / Provider / Consumer）。
+- **定位**：个人版 DeepSeek Harness（mini-Cordis），零依赖，仅 Node ≥ 20 内置，约 2377 行。
+- **核心**：`Context`（服务注册 + 类型化事件） + `Session`（append-only 日志，唯一事实源） + 三段式能力缝（Definition / Provider / Consumer） + `ProjectStore`（项目隔离 + 逐轮 AGENTS.md 注入）。
+- **工具**：5 个（`read_file` / `write_file` / `list_dir` / `bash` / `todo_write`），其中 `write_file`、`bash` 需审批。
 - **入口**：`code-worker/src/cli.js`，经 `profiles/personal.json` + `src/profile.js` 的 `bootProfile()` 装配。
 - **运行**：`node src/cli.js --mock --yes "list files in workspace"`（离线演示）；`npm test`（`node --test`）。
 
@@ -23,12 +24,14 @@
 code-worker/
 ├── src/                  # 核心运行时（ESM）
 │   ├── context.js / session.js / agent-loop.js
-│   ├── llm.js / tools.js / fs.js / shell.js
+│   ├── llm.js / tools.js / fs.js / shell.js / todo.js
+│   ├── projects.js       # 项目 CRUD + repo 隔离 + AGENTS.md 注入
 │   ├── compaction.js / profile.js / cli.js
 │   └── web/server.js, web/settings.js
-├── web/                  # 浏览器客户端（原生 JS，无构建）
+├── web/                  # 浏览器客户端（原生 JS，无构建，含 md.js）
 ├── profiles/personal.json
-├── docs/                 # 设计文档（summary / blueprint）
-├── test/                 # 15 个 node:test 文件
-└── .code-worker/         # 运行时数据（sessions/、settings、credentials）
+├── docs/                 # 设计文档（summary / blueprint + 本文档同步副本）
+├── test/                 # 18 个 node:test 文件
+├── .code-worker/         # 运行时数据（会话日志 + meta.json、settings、credentials）
+└── ~/.code-worker/projects/  # 项目数据（项目 AGENTS.md + repos，CW_PROJECTS_DIR 可改）
 ```

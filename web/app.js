@@ -114,9 +114,15 @@ function openStream(id) {
 }
 
 async function refreshSessions() {
-  const { sessions } = await (await fetch(api("/sessions"))).json();
+  const pid = $("#project-picker").value;
+  const { sessions } = await (await fetch(api(`/sessions${pid ? `?projectId=${encodeURIComponent(pid)}` : ""}`))).json();
   $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${escAttr(s.id)}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
   document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
+  // If the current session is not in this project's list, switch to the first one.
+  if (currentId && !sessions.some((s) => s.id === currentId)) {
+    if (sessions[0]) selectSession(sessions[0].id);
+    else { currentId = null; $("#messages").innerHTML = ""; }
+  }
 }
 
 async function selectSession(id) {
@@ -173,8 +179,10 @@ $("#new-project").onclick = async () => {
   const name = prompt("Project 名称：");
   if (!name) return;
   await fetch(api("/projects"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
-  refreshProjects();
+  await refreshProjects();
+  refreshSessions();
 };
+$("#project-picker").onchange = () => refreshSessions();
 
 $("#new-session").onclick = async () => {
   const projectId = $("#project-picker").value || undefined;

@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node src/cli.js",
     "demo": "node src/cli.js --mock --yes \"list files in workspace\"",
-    "test": "node --test test/harness.test.js test/web.test.js test/settings.test.js test/streaming.test.js test/compaction.test.js test/session-identity.test.js test/retry.test.js test/title.test.js test/usage.test.js test/model-override.test.js test/approval.test.js test/workspace.test.js test/status.test.js test/review2.test.js test/blocked.test.js test/todo.test.js test/render.test.js test/projects.test.js",
+    "test": "node --test test/harness.test.js test/web.test.js test/settings.test.js test/streaming.test.js test/compaction.test.js test/session-identity.test.js test/retry.test.js test/title.test.js test/usage.test.js test/model-override.test.js test/approval.test.js test/workspace.test.js test/status.test.js test/review2.test.js test/blocked.test.js test/todo.test.js test/render.test.js test/projects.test.js test/project-filter.test.js",
     "check": "node --check src/cli.js && node --check src/context.js && node --check src/session.js && node --check src/tools.js && node --check src/llm.js && node --check src/agent-loop.js && node --check src/fs.js && node --check src/shell.js && node --check src/profile.js"
   },
   "engines": {

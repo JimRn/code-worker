@@ -17,6 +17,7 @@ export class SessionStore {
     const dir = join(this.homeDir, id);
     mkdirSync(dir, { recursive: true });
     if (meta.projectId) writeFileSync(join(dir, "meta.json"), JSON.stringify(meta));
+    writeFileSync(join(dir, `session.v${SESSION_FORMAT_VERSION}.jsonl`), ""); // marker: this is a session dir
     const s = new Session(this, id, dir);
     this.cache.set(id, s);
     return s;

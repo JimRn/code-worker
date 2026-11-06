@@ -194,9 +194,20 @@ export function createWebServer({ ctx, store, approval, token }) {
         const { readdirSync } = await import("node:fs");
         const { statSync } = await import("node:fs");
         const ids = existsSync(store.homeDir)
-          ? readdirSync(store.homeDir).filter((id) => { try { return statSync(join(store.homeDir, id)).isDirectory(); } catch { return false; } })
+          ? readdirSync(store.homeDir).filter((id) => {
+              try {
+                const full = join(store.homeDir, id);
+                // A session dir contains its JSONL log (excludes projects/, settings, etc.)
+                return statSync(full).isDirectory() && readdirSync(full).some((f) => f.startsWith("session.v") || f === "meta.json");
+              } catch { return false; }
+            })
           : [];
-        return sendJson(res, 200, { sessions: ids.map((id) => { const s = store.open(id); return { id, title: s.title() }; }) });
+        const projectId = url.searchParams.get("projectId");
+        return sendJson(res, 200, {
+          sessions: ids
+            .map((id) => { const s = store.open(id); return { id, title: s.title(), projectId: s.binding?.projectId }; })
+            .filter((s) => !projectId || s.projectId === projectId),
+        });
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const body = await readBody(req).catch(() => ({}));
