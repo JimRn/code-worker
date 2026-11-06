@@ -50,7 +50,7 @@ export class ToolRegistry {
  * autoApprove ref: {current:boolean, mode:"auto"|"per-call", pending:Map, notify?}
  * In per-call mode the executor suspends until the Web UI decides (see server /api/approvals).
  */
-export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file", "bash"] }) {
+export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file", "bash"], timeoutMs = 30000 }) {
   const guardedSet = new Set(guarded);
   const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
   ref.pending ??= new Map();
@@ -59,9 +59,9 @@ export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file"
     if (ref.current) return next(req); // auto-approved
     if (ref.mode === "per-call") {
       const decision = await new Promise((resolve) => {
-        const rawMs = ref.timeoutMs ?? 30000;
-        const timeoutMs = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : 30000;
-        const timer = setTimeout(() => resolve(false), timeoutMs); // timeout -> deny
+        const rawMs = ref.timeoutMs ?? timeoutMs;
+        const timeoutMsClamped = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : 30000;
+        const timer = setTimeout(() => resolve(false), timeoutMsClamped); // timeout -> deny
         ref.pending.set(req.callId, { resolve: (v) => { clearTimeout(timer); resolve(v); }, req });
         ref.notify?.({ callId: req.callId, name: req.name, args: req.args, sessionId: req.sessionId });
       });

@@ -1,15 +1,21 @@
 // Shell seam: Definition (run) / Provider (local subprocess) / Consumer (tool-bash)
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { LocalSubprocess } from "./subprocess.js";
 
-const execFileAsync = promisify(execFile);
+export const shellScope = new AsyncLocalStorage();
 
 export class ShellService {
   async run() { throw new Error("abstract"); }
 }
 
 export class LocalShell extends ShellService {
-  constructor(workspace, { timeoutMs = 30000 } = {}) { super(); this.workspace = workspace; this.timeoutMs = timeoutMs; }
+  constructor(workspace, { timeoutMs = 30000, subprocess } = {}) {
+    super(); this.defaultWorkspace = workspace; this.timeoutMs = timeoutMs;
+    this.subprocess = subprocess ?? new LocalSubprocess({ timeoutMs });
+  }
+  get workspace() { return shellScope.getStore() ?? this.defaultWorkspace; }
+  set workspace(dir) { this.defaultWorkspace = dir; } // boot-time default only
+  withWorkspace(dir, fn) { return shellScope.run(dir, fn); }
   /** Resolve a Spec explicitly (no hidden defaults in run). */
   resolveSpec(request) {
     if (!request?.command) throw new Error("bash: command is required");
@@ -17,12 +23,7 @@ export class LocalShell extends ShellService {
   }
   async run(request) {
     const spec = this.resolveSpec(request);
-    try {
-      const { stdout, stderr } = await execFileAsync(spec.shell, ["-c", spec.command], { cwd: this.workspace, timeout: spec.timeoutMs, maxBuffer: 200000 });
-      return [stdout, stderr].filter(Boolean).join("\n") || "(no output)";
-    } catch (err) {
-      return `Error (exit ${err.code ?? "?"}): ${(err.stdout ?? "") + (err.stderr ?? err.message)}`.trim();
-    }
+    return this.subprocess.run({ file: spec.shell, args: ["-c", spec.command], cwd: this.workspace, timeoutMs: spec.timeoutMs });
   }
 }
 

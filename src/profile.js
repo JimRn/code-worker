@@ -32,6 +32,8 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     compaction: cfg.compaction,
     approval: autoApprove,
     guardedTools: cfg.guardedTools ?? ["write_file", "bash"],
+    shellTimeoutMs: cfg.shellTimeoutMs ?? 30000,
+    approvalTimeoutMs: cfg.approvalTimeoutMs ?? 30000,
     settings: null, // filled below (settings seeded before llm config fallback)
   };
   // Settings-seeded fallback for model config (persisted Web settings win over env blanks).

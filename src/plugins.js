@@ -18,7 +18,7 @@ export const PLUGINS = {
   tools: (ctx) => ctx.provide("tools", new ToolRegistry(ctx)),
   "fs-local": (ctx, env) => ctx.provide("fs", new LocalFs(env.workspace)),
   "tool-fs": (ctx) => registerFsTools(ctx),
-  "shell-local": (ctx, env) => ctx.provide("shell", new LocalShell(env.workspace)),
+  "shell-local": (ctx, env) => ctx.provide("shell", new LocalShell(env.workspace, { timeoutMs: env.shellTimeoutMs })),
   "tool-bash": (ctx) => registerBashTool(ctx),
   todo: (ctx) => registerTodoTools(ctx),
   projects: (ctx, env) => ctx.provide("projects", new ProjectStore(env.projectsDir)),
@@ -37,5 +37,5 @@ export const PLUGINS = {
     maxSteps: env.maxSteps, toolResultMaxBytes: env.toolResultMaxBytes,
     provider: "openai-compatible", config: env.modelConfig,
   })),
-  "guard-approval": (ctx, env) => installApprovalGuard(ctx, { autoApprove: env.approval, guarded: env.guardedTools }),
+  "guard-approval": (ctx, env) => installApprovalGuard(ctx, { autoApprove: env.approval, guarded: env.guardedTools, timeoutMs: env.approvalTimeoutMs }),
 };

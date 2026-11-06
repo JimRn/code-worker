@@ -11,9 +11,9 @@ export class AgentLoop {
     const ctx = this.ctx;
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
     const compaction = ctx.get("compaction");
-    ctx.provide("currentSession", session); // for plugins needing the live session (isolation, prompts)
-    const prevRoots = await ctx.waterfall("turn/pre-run", { session });
-    try {
+    ctx.provide("currentSession", session); // for plugins needing the live session (prompts)
+    const isolate = ctx.get("isolate") ?? ((_s, fn) => fn());
+    return isolate(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
       const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
@@ -59,9 +59,7 @@ export class AgentLoop {
       await session.append("turn/end", {});
       await ctx.serial("turn/ended", { session });
       return session.deriveMessages();
-    } finally {
-      await ctx.serial("turn/post-run", { prev: prevRoots });
-    }
+    });
   }
   /** agent.inject(): lands in the next admitted request as a logged user/message. */
   async inject(session, text) { return session.append("user/message", { text: `(injected) ${text}` }); }

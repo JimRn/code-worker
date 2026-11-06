@@ -2,6 +2,11 @@
 // Extension plugins depend only on the Definition, never the concrete provider.
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+// Per-turn scoped root (DSH core/scope analogue): concurrent turns keep their
+// own workspace; no shared mutable field is ever reassigned.
+export const fsScope = new AsyncLocalStorage();
 
 export class FsService {
   async readFile() { throw new Error("abstract"); }
@@ -10,7 +15,11 @@ export class FsService {
 }
 
 export class LocalFs extends FsService {
-  constructor(workspace) { super(); this.root = resolve(workspace); }
+  constructor(workspace) { super(); this.defaultRoot = resolve(workspace); }
+  get root() { return fsScope.getStore() ?? this.defaultRoot; }
+  set root(dir) { this.defaultRoot = resolve(dir); } // boot-time default only
+  /** Run fn with a scoped root (concurrent-safe). */
+  withRoot(dir, fn) { return fsScope.run(resolve(dir), fn); }
   /** Sensitive directory names: never accessible through the fs seam, at any root. */
   static BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
   /** Resolve inside workspace; escape/sensitive = loud error (confinement).

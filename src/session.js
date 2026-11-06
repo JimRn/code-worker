@@ -7,6 +7,13 @@ import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usa
 
 export const SESSION_FORMAT_VERSION = 1;
 
+/** Durable event registry (SessionEventMap analogue): unknown types fail loud. */
+export const SESSION_EVENTS = new Set([
+  "turn/start", "turn/end", "step/start", "step/end",
+  "system/message", "user/message", "assistant/message", "assistant/attempt",
+  "tool/call", "tool/result", "todo/write", "session/title", "compaction/summary",
+]);
+
 export class SessionStore {
   constructor(homeDir) {
     this.homeDir = homeDir;
@@ -59,6 +66,7 @@ export class Session {
   }
   /** Append one durable event; broadcast session/event (emit). */
   async append(type, data = {}) {
+    if (!SESSION_EVENTS.has(type)) throw new Error(`Unknown session event type: ${type}`);
     const ev = { v: SESSION_FORMAT_VERSION, seq: this.events.length, ts: Date.now(), type, data };
     this.events.push(ev);
     appendFileSync(this.file, JSON.stringify(ev) + "\n");

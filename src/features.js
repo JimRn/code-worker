@@ -36,23 +36,14 @@ export function installProjectIsolation(ctx) {
     const extra = session?.binding?.projectId && projects ? projects.instructions(session.binding.projectId) : "";
     return next(extra ? `${base}\n\n## Project instructions (AGENTS.md)\n${extra}` : base);
   }, "waterfall");
-  // Isolate fs/shell roots during the turn; restore afterwards.
-  ctx.on("turn/pre-run", async ({ session }) => {
+  // Scoped isolation: run fn with fs/shell roots bound to the session's
+  // project repo via AsyncLocalStorage (concurrent turns cannot cross).
+  ctx.provide("isolate", async (session, fn) => {
     const projects = ctx.get("projects");
-    if (!session.binding?.projectId || !projects) return null;
-    const fs = ctx.require("fs");
-    const shell = ctx.require("shell");
+    if (!session.binding?.projectId || !projects) return fn();
     const dir = projects.repoDir(session.binding.projectId, session.binding.repo);
-    const prev = { fs: fs.root, shell: shell.workspace };
-    fs.root = dir;
-    shell.workspace = dir;
-    return prev;
-  }, "waterfall");
-  ctx.on("turn/post-run", async ({ prev }) => {
-    if (!prev) return;
-    ctx.require("fs").root = prev.fs;
-    ctx.require("shell").workspace = prev.shell;
-  }, "serial");
+    return ctx.require("fs").withRoot(dir, () => ctx.require("shell").withWorkspace(dir, fn));
+  });
 }
 
 /** Title generator plugin: once per session, after the first turn ends. */
