@@ -33,7 +33,7 @@ test("compact: summarizes old turns into a durable event; projection drops pre-s
       await session.append("assistant/message", { text: `answer ${i}`, toolCalls: [] });
     }
     const before = session.deriveMessages().length;
-    const text = await ctx.require("agentLoop").compact(session);
+    const text = await ctx.require("compaction").compact(session);
     assert.ok(text && text.length > 0);
     assert.ok(session.events.some((e) => e.type === "compaction/summary"));
     const after = session.deriveMessages();
@@ -42,7 +42,7 @@ test("compact: summarizes old turns into a durable event; projection drops pre-s
     // nothing to compact when history is short
     const s2 = store.create();
     await s2.append("user/message", { text: "hi" });
-    assert.equal(await ctx.require("agentLoop").compact(s2), null);
+    assert.equal(await ctx.require("compaction").compact(s2), null);
   } finally {
     await dispose();
   }

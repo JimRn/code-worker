@@ -1,16 +1,21 @@
 {
   "name": "personal",
-  "description": "Personal profile: single bundle = fs + shell + tools + llm(openai-compatible|mock) + agent-loop",
+  "description": "Personal profile: fs + shell + tools + llm(openai-compatible|mock) + loop + projects + todo + compaction",
   "home": ".code-worker",
   "plugins": [
     "session",
-    "system-prompt",
     "tools",
     "fs-local",
     "tool-fs",
     "shell-local",
     "tool-bash",
-    "llm-deepseek",
+    "todo",
+    "projects",
+    "settings",
+    "llm",
+    "compaction",
+    "project-isolation",
+    "title-generator",
     "agent-loop",
     "guard-approval"
   ],
@@ -18,6 +23,7 @@
     "workspace": ".",
     "maxSteps": 8,
     "toolResultMaxBytes": 20000,
+    "guardedTools": ["write_file", "bash"],
     "compaction": {
       "maxContextChars": 60000,
       "pruneBytes": 2000,

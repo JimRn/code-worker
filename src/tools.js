@@ -50,12 +50,12 @@ export class ToolRegistry {
  * autoApprove ref: {current:boolean, mode:"auto"|"per-call", pending:Map, notify?}
  * In per-call mode the executor suspends until the Web UI decides (see server /api/approvals).
  */
-export function installApprovalGuard(ctx, { autoApprove }) {
-  const guarded = new Set(["write_file", "bash"]);
+export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file", "bash"] }) {
+  const guardedSet = new Set(guarded);
   const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
   ref.pending ??= new Map();
   return ctx.on("tools/pre-execute", async (req, next) => {
-    if (!guarded.has(req.name)) return next(req);
+    if (!guardedSet.has(req.name)) return next(req);
     if (ref.current) return next(req); // auto-approved
     if (ref.mode === "per-call") {
       const decision = await new Promise((resolve) => {

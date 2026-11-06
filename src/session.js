@@ -3,6 +3,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usageTotals as deriveUsageTotals } from "./session-views.js";
 
 export const SESSION_FORMAT_VERSION = 1;
 
@@ -71,49 +72,9 @@ export class Session {
     await this.append("todo/write", { todos });
     return true;
   }
-  /** Latest todo list from todo/write events (log-only durable state). */
-  todos() {
-    for (let i = this.events.length - 1; i >= 0; i--) {
-      if (this.events[i].type === "todo/write") return this.events[i].data.todos;
-    }
-    return [];
-  }
-  /** Sum of token usage across assistant messages (provider-reported). */
-  usageTotals() {
-    let prompt = 0, completion = 0;
-    for (const ev of this.events) {
-      if (ev.type === "assistant/message" && ev.data.usage) {
-        prompt += ev.data.usage.prompt_tokens ?? 0;
-        completion += ev.data.usage.completion_tokens ?? 0;
-      }
-    }
-    return { prompt, completion, total: prompt + completion };
-  }
-  /** Latest generated title, or null. */
-  title() {
-    for (let i = this.events.length - 1; i >= 0; i--) {
-      if (this.events[i].type === "session/title") return this.events[i].data.text;
-    }
-    return null;
-  }
-  /** Project model history from the log. After a compaction/summary, only the
-   *  summary + later events are model-visible (the summary is itself logged). */
-  deriveMessages() {
-    const msgs = [];
-    let compacted = false;
-    for (const ev of this.events) {
-      if (ev.type === "compaction/summary") {
-        msgs.length = 0; // drop pre-summary history from the projection
-        msgs.push({ role: "system", content: `[Earlier conversation summarized]\n${ev.data.text}` });
-        compacted = true;
-        continue;
-      }
-      if (ev.type === "system/message") msgs.push({ role: "system", content: ev.data.text });
-      else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });
-      else if (ev.type === "assistant/message") msgs.push({ role: "assistant", content: ev.data.text, tool_calls: ev.data.toolCalls ?? undefined });
-      else if (ev.type === "tool/result") msgs.push({ role: "tool", tool_call_id: ev.data.callId, content: ev.data.output });
-    }
-    void compacted;
-    return msgs;
-  }
+  // Derived views delegate to session-views.js (Session only appends).
+  todos() { return deriveMessagesTodos(this.events); }
+  usageTotals() { return deriveUsageTotals(this.events); }
+  title() { return deriveTitle(this.events); }
+  deriveMessages() { return deriveMessages(this.events); }
 }

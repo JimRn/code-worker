@@ -1,11 +1,12 @@
 // Web Host (mirrors DSH host/ + api/): Node http server serving static client
-// and a session RPC/stream API. The browser client renders from session/event,
-// exactly like DSH's Web Session-follow adapter consumes agent/assistant-stream.
+// and a session RPC/stream API. Routes are grouped in routes.js; this file
+// owns only transport (static, auth, SSE, turn dispatch).
 import { createServer } from "node:http";
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { networkInterfaces, homedir, tmpdir } from "node:os";
+import { networkInterfaces } from "node:os";
+import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes } from "./routes.js";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -25,9 +26,6 @@ const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css
  */
 export function createWebServer({ ctx, store, approval, token }) {
   const loop = ctx.require("agentLoop");
-  const settings = ctx.get("settings");
-  const modelConfig = ctx.get("modelConfig");
-  const bootWorkspace = ctx.require("fs").root;
   const running = new Set(); // sessionIds with an in-flight turn
   const sseClients = new Map(); // sessionId -> Set<res> (approval notify is session-directed)
   // Per-call approval: guard suspends; we fan the request out to that session's browsers only.
@@ -48,6 +46,19 @@ export function createWebServer({ ctx, store, approval, token }) {
     });
     req.on("end", () => { try { resolve(b ? JSON.parse(b) : {}); } catch { reject(new Error("invalid JSON body")); } });
   });
+
+  // Route registry: groups register first, core dispatches by match.
+  const routes = [];
+  const app = {
+    ctx, sendJson, readBody, approval,
+    route(method, pattern, handler) {
+      routes.push({ method, match: typeof pattern === "string" ? (p) => p === pattern : (p) => { const m = p.match(pattern); return m ? m : null; }, handler, isRegex: pattern instanceof RegExp });
+    },
+  };
+  registerProjectRoutes(app);
+  registerSettingsRoutes(app);
+  registerWorkspaceRoutes(app);
+  registerApprovalRoutes(app);
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>
@@ -71,177 +82,23 @@ export function createWebServer({ ctx, store, approval, token }) {
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
       }
-      // --- projects ---
-      const projects = ctx.get("projects");
-      if (url.pathname === "/api/projects" && req.method === "GET") {
-        return sendJson(res, 200, { projects: projects.list().map(({ dir, ...p }) => p) });
+      // --- grouped routes ---
+      for (const r of routes) {
+        if (r.method !== req.method) continue;
+        const m = r.match(url.pathname);
+        if (m) return r.handler(req, res, m === true ? null : m, url);
       }
-      if (url.pathname === "/api/projects" && req.method === "POST") {
-        const body = await readBody(req);
-        try {
-          const p = projects.create(body.name);
-          return sendJson(res, 201, { id: p.id, name: p.name, repos: p.repos });
-        } catch (err) { return sendJson(res, 400, { error: err.message }); }
-      }
-      const pm = url.pathname.match(/^\/api\/projects\/([\w-]+)(\/(repos|instructions))?$/);
-      if (pm) {
-        const project = projects.get(pm[1]);
-        if (!project) return sendJson(res, 404, { error: "project not found" });
-        if (!pm[2]) return sendJson(res, 200, { id: project.id, name: project.name, repos: project.repos, instructions: projects.instructions(pm[1]) });
-        if (pm[3] === "repos" && req.method === "POST") {
-          const body = await readBody(req);
-          return sendJson(res, 201, { repo: projects.addRepo(pm[1], body.name) });
-        }
-        if (pm[3] === "instructions" && req.method === "PUT") {
-          const body = await readBody(req);
-          if (typeof body.text !== "string") return sendJson(res, 400, { error: "text is required" });
-          writeFileSync(join(project.dir, "AGENTS.md"), body.text);
-          return sendJson(res, 200, { ok: true });
-        }
-      }
-      // --- file upload (user-initiated; lands in workspace uploads/) ---
-      if (url.pathname === "/api/upload" && req.method === "POST") {
-        const body = await readBody(req);
-        if (!body.name || !body.content) return sendJson(res, 400, { error: "name and content (base64) required" });
-        const buf = Buffer.from(body.content, "base64");
-        if (buf.length > 5 * 1024 * 1024) return sendJson(res, 413, { error: "file too large (5MB)" });
-        const safe = body.name.replace(/[^\w.\- ]/g, "_").slice(0, 100);
-        await ctx.require("fs").writeFile(`uploads/${safe}`, buf.toString("utf8"));
-        return sendJson(res, 201, { path: `uploads/${safe}` });
-      }
-      // --- session export (download log as .jsonl) ---
-      const em = url.pathname.match(/^\/api\/sessions\/([\w-]+)\/export$/);
-      if (em && req.method === "GET") {
-        const session = store.open(em[1]);
-        res.writeHead(200, { "content-type": "application/x-ndjson", "content-disposition": `attachment; filename="session-${session.id}.jsonl"` });
-        return res.end(session.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
-      }
-      // --- workspace: list + switch (fs seam root moves; tools follow) ---
-      if (url.pathname === "/api/workspace" && req.method === "GET") {
-        const fs = ctx.require("fs");
-        const sub = url.searchParams.get("path") || ".";
-        // Project-scoped browsing: list inside the project's repo, not the global workspace.
-        const projectId = url.searchParams.get("projectId");
-        if (projectId) {
-          try {
-            const { readdirSync, realpathSync } = await import("node:fs");
-            const { resolve: res2, sep: sep2 } = await import("node:path");
-            // Browse the PROJECT root (docs/skills/agents/outputs/repos), not just the repo.
-            const dir = realpathSync(ctx.get("projects").get(projectId).dir);
-            const abs = realpathSync(res2(dir, sub));
-            if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
-            const entries = readdirSync(abs, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() }));
-            return sendJson(res, 200, { root: dir, path: sub, entries });
-          } catch (err) {
-            return sendJson(res, 400, { error: err.message });
-          }
-        }
-        try {
-          const entries = await fs.listEntries(sub);
-          return sendJson(res, 200, { root: fs.root, path: sub, entries });
-        } catch (err) {
-          return sendJson(res, 400, { error: err.message });
-        }
-      }
-      if (url.pathname === "/api/workspace/read" && req.method === "GET") {
-        const projectId = url.searchParams.get("projectId");
-        const sub = url.searchParams.get("path") || "";
-        try {
-          let content;
-          if (projectId) {
-            const { realpathSync, readFileSync, statSync } = await import("node:fs");
-            const { resolve: res2, sep: sep2 } = await import("node:path");
-            const dir = realpathSync(ctx.get("projects").get(projectId).dir);
-            const abs = realpathSync(res2(dir, sub));
-            if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
-            if (statSync(abs).isDirectory()) return sendJson(res, 400, { error: "is a directory" });
-            if (statSync(abs).size > 200 * 1024) return sendJson(res, 413, { error: "file too large (200KB)" });
-            content = readFileSync(abs, "utf8");
-          } else {
-            content = await ctx.require("fs").readFile(sub);
-            if (content.length > 200 * 1024) return sendJson(res, 413, { error: "file too large (200KB)" });
-          }
-          return sendJson(res, 200, { path: sub, content });
-        } catch (err) {
-          return sendJson(res, 400, { error: err.message });
-        }
-      }
-      if (url.pathname === "/api/workspace" && req.method === "PUT") {
-        const body = await readBody(req);
-        if (!body.path) return sendJson(res, 400, { error: "path is required" });
-        const fs = ctx.require("fs");
-        const shell = ctx.require("shell");
-        const { resolve, sep } = await import("node:path");
-        const { realpathSync, statSync } = await import("node:fs");
-        if (!existsSync(body.path) || !statSync(body.path).isDirectory()) return sendJson(res, 400, { error: "not a directory" });
-        // Canonicalize (defeats symlink escape) before the allowlist check.
-        const abs = realpathSync(body.path);
-        const allowed = [bootWorkspace, homedir(), tmpdir()].some((r) => abs === r || abs.startsWith(r + sep));
-        if (!allowed) return sendJson(res, 403, { error: "workspace outside allowed roots (boot workspace / home)" });
-        // Sensitive subdirectories are never workspace roots.
-        const BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
-        if (abs.split(sep).some((seg) => BLOCKED.has(seg))) return sendJson(res, 403, { error: "workspace in a sensitive directory" });
-        fs.root = abs;
-        shell.workspace = abs;
-        settings.setWorkspace(abs);
-        return sendJson(res, 200, { root: abs });
-      }
-      // --- per-call approvals ---
-      if (url.pathname === "/api/approvals" && req.method === "POST") {
-        const body = await readBody(req);
-        const entry = approval.pending?.get(body.callId);
-        if (!entry) return sendJson(res, 404, { error: "no pending approval" });
-        if (body.sessionId && entry.req.sessionId !== body.sessionId) return sendJson(res, 403, { error: "approval belongs to a different session" });
-        entry.resolve(Boolean(body.approved));
-        return sendJson(res, 200, { ok: true });
-      }
-      // --- settings (redacted; API key write-only, never returned) ---
-      if (url.pathname === "/api/settings" && req.method === "GET") {
-        return sendJson(res, 200, settings.describe());
-      }
-      if (url.pathname === "/api/settings" && req.method === "PUT") {
-        const body = await readBody(req);
-        const view = settings.update(body);
-        // Live-apply to the running adapter/loop without restart.
-        if (body.baseUrl !== undefined) modelConfig.baseUrl = body.baseUrl || undefined;
-        if (body.model !== undefined) modelConfig.model = body.model || undefined;
-        if (body.apiKey) modelConfig.apiKey = body.apiKey;
-        return sendJson(res, 200, view);
-      }
-      if (url.pathname === "/api/settings/test" && req.method === "POST") {
-        const body = await readBody(req);
-        const baseUrl = (body.baseUrl || modelConfig.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
-        // SSRF guard: test only ever calls the CONFIGURED host. A body baseUrl
-        // pointing elsewhere is rejected (no intranet probing, no key leak).
-        const storedHost = (() => { try { return new URL(modelConfig.baseUrl || "https://api.openai.com/v1").host; } catch { return ""; } })();
-        let reqHost = "";
-        try { reqHost = new URL(baseUrl).host; } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
-        if (reqHost !== storedHost) return sendJson(res, 200, { ok: false, error: "test endpoint restricted to the configured host" });
-        const key = body.apiKey || modelConfig.apiKey;
-        if (!key) return sendJson(res, 400, { ok: false, error: "no API key configured" });
-        try {
-          const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` } });
-          const json = await r.json().catch(() => ({}));
-          const models = json.data?.map?.((m) => m.id) ?? [];
-          return sendJson(res, 200, { ok: r.ok, status: r.status, models: models.slice(0, 20) });
-        } catch (err) {
-          return sendJson(res, 200, { ok: false, error: err.message });
-        }
-      }
-      // --- session RPC ---
+      // --- session RPC + SSE + turn (core) ---
       if (url.pathname === "/api/sessions" && req.method === "GET") {
-        const { readdirSync } = await import("node:fs");
-        const { statSync } = await import("node:fs");
+        const projectId = url.searchParams.get("projectId");
         const ids = existsSync(store.homeDir)
           ? readdirSync(store.homeDir).filter((id) => {
               try {
                 const full = join(store.homeDir, id);
-                // A session dir contains its JSONL log (excludes projects/, settings, etc.)
                 return statSync(full).isDirectory() && readdirSync(full).some((f) => f.startsWith("session.v") || f === "meta.json");
               } catch { return false; }
             })
           : [];
-        const projectId = url.searchParams.get("projectId");
         return sendJson(res, 200, {
           sessions: ids
             .map((id) => { const s = store.open(id); return { id, title: s.title(), projectId: s.binding?.projectId }; })
@@ -255,14 +112,17 @@ export function createWebServer({ ctx, store, approval, token }) {
         const s = store.create(binding);
         return sendJson(res, 201, { id: s.id });
       }
-      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(events|stream|turn|compact))?$/);
+      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(stream|turn|compact|export))?$/);
       if (m) {
         const session = store.open(m[1]);
         if (!m[2] && req.method === "GET") {
           return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
         }
+        if (m[3] === "export" && req.method === "GET") {
+          res.writeHead(200, { "content-type": "application/x-ndjson", "content-disposition": `attachment; filename="session-${session.id}.jsonl"` });
+          return res.end(session.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+        }
         if (m[3] === "stream" && req.method === "GET") {
-          // SSE: replay history then stream session/event live.
           res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
           for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
           const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
@@ -271,8 +131,7 @@ export function createWebServer({ ctx, store, approval, token }) {
           req.on("close", () => {
             off();
             sseClients.get(session.id)?.delete(res);
-            // Disconnect: auto-deny only when NO tab remains for this session
-            // (one tab closing must not deny another tab's pending approval).
+            // Disconnect: auto-deny only when NO tab remains for this session.
             if ((sseClients.get(session.id)?.size ?? 0) === 0) {
               for (const [callId, entry] of approval.pending ?? []) {
                 if (entry.req.sessionId === session.id) entry.resolve(false);
@@ -283,7 +142,7 @@ export function createWebServer({ ctx, store, approval, token }) {
         }
         if (m[3] === "compact" && req.method === "POST") {
           try {
-            const text = await loop.compact(session);
+            const text = await ctx.require("compaction").compact(session);
             return sendJson(res, 200, { compacted: Boolean(text), summary: text ?? undefined });
           } catch (err) {
             return sendJson(res, 500, { error: err.message });

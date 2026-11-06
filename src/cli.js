@@ -63,7 +63,7 @@ try {
       if (!t) { rl.prompt(); continue; }
       if (t === "/exit" || t === "/quit") break;
       if (t === "/compact") {
-        const text = await loop.compact(session).catch((e) => { console.log(`compact failed: ${e.message}`); return null; });
+        const text = await ctx.require("compaction").compact(session).catch((e) => { console.log(`compact failed: ${e.message}`); return null; });
         console.log(text ? `compacted: ${text.slice(0, 120)}…` : "nothing to compact");
         rl.prompt(); continue;
       }

@@ -1,117 +1,67 @@
 // AgentLoop: default driver. Turn = 0..N Steps; Step = 1 model request + its tools.
-// Sequence: turn/start -> claim -> snapshot model -> assemble prompt+tools -> agent/pre-step
-//   -> prepareCall bind -> commit system/user -> freeze -> stream -> tools pipeline -> step/end
-//   -> (more tools owed?) -> next step -> agent/turn-stopping (serial) -> turn/end
-import { pruneToolResults, estimateChars, summarizeMessages } from "./compaction.js";
-
+// Vertical features live in plugins (compaction service, project isolation,
+// title generator); the loop only orchestrates Turn/Step via ctx services/events.
 export class AgentLoop {
-  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "openai-compatible", model, config, compaction = {} } = {}) {
+  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "openai-compatible", model, config } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
     this.provider = provider; this.model = model; this.config = config; // mutable ref: Web settings live-update
-    this.compaction = { maxContextChars: compaction.maxContextChars ?? 60000, pruneBytes: compaction.pruneBytes ?? 2000, keepRecent: compaction.keepRecent ?? 4, ...compaction };
   }
   currentModel() { return this.config?.model ?? this.model; }
   async runTurn(session, userText, { onText, model } = {}) {
-    const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
-    // Project isolation: point fs/shell at this session's project repo for the turn.
-    const fs = this.ctx.get("fs");
-    const shell = this.ctx.get("shell");
-    const projects = this.ctx.get("projects");
-    let prevRoots = null;
-    if (session.binding?.projectId && projects) {
-      const dir = projects.repoDir(session.binding.projectId, session.binding.repo);
-      prevRoots = { fs: fs.root, shell: shell.workspace };
-      fs.root = dir;
-      shell.workspace = dir;
-    }
     const ctx = this.ctx;
-    await session.append("turn/start", {});
-    await session.append("user/message", { text: userText });
-    // Project AGENTS.md injected every turn (read fresh, so edits apply immediately).
-    const projectInstructions = session.binding?.projectId && projects ? projects.instructions(session.binding.projectId) : "";
-    const basePrompt = "You are Code Worker, a coding agent. Use tools when needed." +
-      (projectInstructions ? `\n\n## Project instructions (AGENTS.md)\n${projectInstructions}` : "");
-    const systemText = await ctx.waterfall("system-prompt/assemble", basePrompt);
-    // Dedup: only log when changed, so repeated turns don't bloat the log/context.
-    const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
-    if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
-
-    for (let step = 0; step < this.maxSteps; step++) {
-      // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
-      const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
-      if (pre?.rejected) break;
-      // Compaction: prune old tool results (free), summarize when over budget.
-      let messages = pruneToolResults(pre.messages, { maxBytes: this.compaction.pruneBytes, keepLast: this.compaction.keepRecent });
-      if (estimateChars(messages) > this.compaction.maxContextChars) {
-        try { await this.compact(session); } catch (err) { console.error(`[compact] failed, continuing: ${err.message}`); }
-      }
-      messages = session.deriveMessages();
-      await session.append("step/start", { step });
-      let result;
-      try {
-        // Stream: chunks are live-only (assistant/chunk); settlement is one durable message.
-        const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: ctx.require("tools").schemas() });
-        result = { text: "", toolCalls: [] };
-        for await (const chunk of bound()) {
-          if (chunk.type === "text") {
-            result.text += chunk.delta;
-            onText?.(chunk.delta);
-            session.broadcastLive("assistant/chunk", { delta: chunk.delta });
-          } else if (chunk.type === "finish") {
-            result = chunk;
-          }
-        }
-      } catch (err) {
-        await session.append("assistant/attempt", { error: err.message });
-        await session.append("step/end", { step, error: err.message });
-        break;
-      }
-      await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined });
-      if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
-      for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
-      const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session });
-      for (const r of results) await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
-      await session.append("step/end", { step });
-    }
-    await ctx.serial("agent/turn-stopping", { session });
-    await session.append("turn/end", {});
-    await this.maybeGenerateTitle(session);
-    if (prevRoots) { fs.root = prevRoots.fs; shell.workspace = prevRoots.shell; } // restore isolation
-    return session.deriveMessages();
-  }
-  /** Generate a session title once, after the first completed turn. */
-  async maybeGenerateTitle(session) {
-    if (session.title()) return null;
-    const firstUser = session.events.find((e) => e.type === "user/message");
-    if (!firstUser) return null;
+    const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
+    const compaction = ctx.get("compaction");
+    ctx.provide("currentSession", session); // for plugins needing the live session (isolation, prompts)
+    const prevRoots = await ctx.waterfall("turn/pre-run", { session });
     try {
-      const bound = this.ctx.require("llm").prepareCall({
-        provider: this.provider, model: this.currentModel(),
-        messages: [
-          { role: "system", content: "Reply with a short session title (max 8 words, no quotes, same language as the user). Title only." },
-          { role: "user", content: firstUser.data.text },
-        ],
-        tools: [],
-      });
-      let text = "";
-      for await (const c of bound()) if (c.type === "finish") text = c.text;
-      text = text.trim().replace(/^["'「]|["'」]$/g, "").slice(0, 60);
-      if (!text) return null;
-      await session.append("session/title", { text });
-      return text;
-    } catch {
-      return null; // title is best-effort; never break the turn
+      await session.append("turn/start", {});
+      await session.append("user/message", { text: userText });
+      const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
+      // Dedup: only log when changed, so repeated turns don't bloat the log/context.
+      const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
+      if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
+
+      for (let step = 0; step < this.maxSteps; step++) {
+        // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
+        const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
+        if (pre?.rejected) break;
+        let messages = compaction ? compaction.prune(pre.messages) : pre.messages;
+        if (compaction) await compaction.maybeCompact(session, messages);
+        messages = session.deriveMessages();
+        await session.append("step/start", { step });
+        let result;
+        try {
+          // Stream: chunks are live-only (assistant/chunk); settlement is one durable message.
+          const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: ctx.require("tools").schemas() });
+          result = { text: "", toolCalls: [] };
+          for await (const chunk of bound()) {
+            if (chunk.type === "text") {
+              result.text += chunk.delta;
+              onText?.(chunk.delta);
+              session.broadcastLive("assistant/chunk", { delta: chunk.delta });
+            } else if (chunk.type === "finish") {
+              result = chunk;
+            }
+          }
+        } catch (err) {
+          await session.append("assistant/attempt", { error: err.message });
+          await session.append("step/end", { step, error: err.message });
+          break;
+        }
+        await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined });
+        if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
+        for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
+        const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session });
+        for (const r of results) await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
+        await session.append("step/end", { step });
+      }
+      await ctx.serial("agent/turn-stopping", { session });
+      await session.append("turn/end", {});
+      await ctx.serial("turn/ended", { session });
+      return session.deriveMessages();
+    } finally {
+      await ctx.serial("turn/post-run", { prev: prevRoots });
     }
-  }
-  /** Compact now: summarize all but the last `keepRecent` exchanges into a durable summary event. */
-  async compact(session) {
-    const messages = session.deriveMessages();
-    const keep = this.compaction.keepRecent * 2; // user+assistant pairs
-    if (messages.length <= keep) return null;
-    const old = messages.slice(0, -keep);
-    const text = await summarizeMessages(this.ctx, old);
-    await session.append("compaction/summary", { text, summarizedCount: old.length });
-    return text;
   }
   /** agent.inject(): lands in the next admitted request as a logged user/message. */
   async inject(session, text) { return session.append("user/message", { text: `(injected) ${text}` }); }
