@@ -13,10 +13,25 @@ export class AgentLoop {
   currentModel() { return this.config?.model ?? this.model; }
   async runTurn(session, userText, { onText, model } = {}) {
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
+    // Project isolation: point fs/shell at this session's project repo for the turn.
+    const fs = this.ctx.get("fs");
+    const shell = this.ctx.get("shell");
+    const projects = this.ctx.get("projects");
+    let prevRoots = null;
+    if (session.binding?.projectId && projects) {
+      const dir = projects.repoDir(session.binding.projectId, session.binding.repo);
+      prevRoots = { fs: fs.root, shell: shell.workspace };
+      fs.root = dir;
+      shell.workspace = dir;
+    }
     const ctx = this.ctx;
     await session.append("turn/start", {});
     await session.append("user/message", { text: userText });
-    const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
+    // Project AGENTS.md injected every turn (read fresh, so edits apply immediately).
+    const projectInstructions = session.binding?.projectId && projects ? projects.instructions(session.binding.projectId) : "";
+    const basePrompt = "You are Code Worker, a coding agent. Use tools when needed." +
+      (projectInstructions ? `\n\n## Project instructions (AGENTS.md)\n${projectInstructions}` : "");
+    const systemText = await ctx.waterfall("system-prompt/assemble", basePrompt);
     // Dedup: only log when changed, so repeated turns don't bloat the log/context.
     const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
     if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
@@ -61,6 +76,7 @@ export class AgentLoop {
     await ctx.serial("agent/turn-stopping", { session });
     await session.append("turn/end", {});
     await this.maybeGenerateTitle(session);
+    if (prevRoots) { fs.root = prevRoots.fs; shell.workspace = prevRoots.shell; } // restore isolation
     return session.deriveMessages();
   }
   /** Generate a session title once, after the first completed turn. */

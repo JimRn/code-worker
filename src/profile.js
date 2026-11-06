@@ -10,6 +10,7 @@ import { LlmService, OpenAICompatibleAdapter, MockAdapter } from "./llm.js";
 import { AgentLoop } from "./agent-loop.js";
 import { SettingsStore } from "./web/settings.js";
 import { registerTodoTools } from "./todo.js";
+import { ProjectStore } from "./projects.js";
 
 export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl, home } = {}) {
   const profile = JSON.parse(readFileSync(profilePath, "utf8"));
@@ -30,6 +31,8 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   registerBashTool(ctx);
   // todo (model-facing list, durable log-only events)
   registerTodoTools(ctx);
+  // projects (project-level management, strict per-project isolation)
+  ctx.provide("projects", new ProjectStore());
   // settings (Web settings page): persisted model config, seeded from env/CLI.
   const settings = new SettingsStore(profile.home ?? ".code-worker");
   ctx.provide("settings", settings);

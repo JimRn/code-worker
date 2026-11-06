@@ -1,6 +1,6 @@
 // Session: append-only SessionEvent log (JSONL) — the single source of truth.
 // Invariant: Model-visible <=> Logged. Anything sent to the model is in this log.
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -12,10 +12,11 @@ export class SessionStore {
     mkdirSync(homeDir, { recursive: true });
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
   }
-  create() {
+  create(meta = {}) {
     const id = randomUUID().slice(0, 8);
     const dir = join(this.homeDir, id);
     mkdirSync(dir, { recursive: true });
+    if (meta.projectId) writeFileSync(join(dir, "meta.json"), JSON.stringify(meta));
     const s = new Session(this, id, dir);
     this.cache.set(id, s);
     return s;
@@ -36,6 +37,7 @@ export class Session {
     this.store = store; this.id = id; this.dir = dir;
     this.file = join(dir, `session.v${SESSION_FORMAT_VERSION}.jsonl`);
     this.events = [];
+    this.binding = existsSync(join(dir, "meta.json")) ? JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) : {};
     if (existsSync(this.file)) {
       this.events = readFileSync(this.file, "utf8").split("\n").filter(Boolean)
         .map((l) => JSON.parse(l));

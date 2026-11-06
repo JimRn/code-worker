@@ -2,7 +2,7 @@
 // and a session RPC/stream API. The browser client renders from session/event,
 // exactly like DSH's Web Session-follow adapter consumes agent/assistant-stream.
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces, homedir, tmpdir } from "node:os";
@@ -70,6 +70,34 @@ export function createWebServer({ ctx, store, approval, token }) {
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
+      }
+      // --- projects ---
+      const projects = ctx.get("projects");
+      if (url.pathname === "/api/projects" && req.method === "GET") {
+        return sendJson(res, 200, { projects: projects.list().map(({ dir, ...p }) => p) });
+      }
+      if (url.pathname === "/api/projects" && req.method === "POST") {
+        const body = await readBody(req);
+        try {
+          const p = projects.create(body.name);
+          return sendJson(res, 201, { id: p.id, name: p.name, repos: p.repos });
+        } catch (err) { return sendJson(res, 400, { error: err.message }); }
+      }
+      const pm = url.pathname.match(/^\/api\/projects\/([\w-]+)(\/(repos|instructions))?$/);
+      if (pm) {
+        const project = projects.get(pm[1]);
+        if (!project) return sendJson(res, 404, { error: "project not found" });
+        if (!pm[2]) return sendJson(res, 200, { id: project.id, name: project.name, repos: project.repos, instructions: projects.instructions(pm[1]) });
+        if (pm[3] === "repos" && req.method === "POST") {
+          const body = await readBody(req);
+          return sendJson(res, 201, { repo: projects.addRepo(pm[1], body.name) });
+        }
+        if (pm[3] === "instructions" && req.method === "PUT") {
+          const body = await readBody(req);
+          if (typeof body.text !== "string") return sendJson(res, 400, { error: "text is required" });
+          writeFileSync(join(project.dir, "AGENTS.md"), body.text);
+          return sendJson(res, 200, { ok: true });
+        }
       }
       // --- file upload (user-initiated; lands in workspace uploads/) ---
       if (url.pathname === "/api/upload" && req.method === "POST") {
@@ -171,14 +199,17 @@ export function createWebServer({ ctx, store, approval, token }) {
         return sendJson(res, 200, { sessions: ids.map((id) => { const s = store.open(id); return { id, title: s.title() }; }) });
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
-        const s = store.create();
+        const body = await readBody(req).catch(() => ({}));
+        const binding = body.projectId ? { projectId: body.projectId, repo: body.repo } : {};
+        if (binding.projectId && !ctx.get("projects").get(binding.projectId)) return sendJson(res, 400, { error: "project not found" });
+        const s = store.create(binding);
         return sendJson(res, 201, { id: s.id });
       }
       const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(events|stream|turn|compact))?$/);
       if (m) {
         const session = store.open(m[1]);
         if (!m[2] && req.method === "GET") {
-          return sendJson(res, 200, { id: session.id, title: session.title(), usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
+          return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
         }
         if (m[3] === "stream" && req.method === "GET") {
           // SSE: replay history then stream session/event live.

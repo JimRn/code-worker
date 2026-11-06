@@ -163,8 +163,22 @@ $("#perm-picker").onchange = (e) => {
   $("#per-call").checked = e.target.value === "per-call";
 };
 
+async function refreshProjects() {
+  const { projects } = await (await fetch(api("/projects"))).json();
+  $("#project-picker").innerHTML =
+    `<option value="">（无 Project，全局 workspace）</option>` +
+    projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
+}
+$("#new-project").onclick = async () => {
+  const name = prompt("Project 名称：");
+  if (!name) return;
+  await fetch(api("/projects"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+  refreshProjects();
+};
+
 $("#new-session").onclick = async () => {
-  const { id } = await (await fetch(api("/sessions"), { method: "POST" })).json();
+  const projectId = $("#project-picker").value || undefined;
+  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId }) })).json();
   selectSession(id);
 };
 
@@ -243,6 +257,7 @@ async function refreshWorkspace() {
 }
 
 loadSettings?.();
+refreshProjects();
 refreshWorkspace();
 refreshSessions().then(async () => {
   const first = document.querySelector("#session-list li");
