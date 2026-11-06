@@ -58,7 +58,9 @@ export function installApprovalGuard(ctx, { autoApprove }) {
     if (ref.current) return next(req); // auto-approved
     if (ref.mode === "per-call") {
       const decision = await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(false), ref.timeoutMs ?? 30000); // timeout -> deny
+        const rawMs = ref.timeoutMs ?? 30000;
+        const timeoutMs = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : 30000;
+        const timer = setTimeout(() => resolve(false), timeoutMs); // timeout -> deny
         ref.pending.set(req.callId, { resolve: (v) => { clearTimeout(timer); resolve(v); }, req });
         ref.notify?.({ callId: req.callId, name: req.name, args: req.args, sessionId: req.sessionId });
       });

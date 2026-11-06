@@ -11,10 +11,13 @@ export class FsService {
 
 export class LocalFs extends FsService {
   constructor(workspace) { super(); this.root = resolve(workspace); }
-  /** Resolve inside workspace; escape = loud error (confinement). */
+  /** Sensitive directory names: never accessible through the fs seam, at any root. */
+  static BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
+  /** Resolve inside workspace; escape/sensitive = loud error (confinement). */
   resolve(p) {
     const abs = resolve(this.root, p);
     if (abs !== this.root && !abs.startsWith(this.root + sep)) throw new Error(`Path escapes workspace: ${p}`);
+    if (abs.split(sep).some((seg) => LocalFs.BLOCKED.has(seg))) throw new Error(`Path in sensitive directory: ${p}`);
     return abs;
   }
   async readFile(p) { return readFileSync(this.resolve(p), "utf8"); }

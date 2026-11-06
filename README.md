@@ -84,3 +84,9 @@ node src/cli.js --web --host 127.0.0.1            # 仅本机
 - **Prune**（每步自动、无模型成本）：超过 `compaction.pruneBytes` 的旧工具结果截断为头尾 + `[pruned]`，保留最近 `keepRecent` 条原文。
 - **Summarize**：估算上下文（字符数）超过 `compaction.maxContextChars`（默认 60000）时，把旧轮次用 LLM 摘要成一条耐久 `compaction/summary` 事件；`deriveMessages()` 投影只保留摘要 + 其后事件（摘要本身已落日志，满足 model-visible ⟺ logged）。
 - 手动触发：Web `POST /api/sessions/:id/compact`，或 REPL 输入 `/compact`。
+
+## 安全边界说明（review 加固）
+
+- `fs` 缝：`.ssh/.aws/.gnupg/.dsh` 在任何 workspace 下均不可读/写（`LocalFs.resolve` 层拦截）；workspace 切换另有 allowlist（启动 root / home / tmp 子树，realpath 后校验）。
+- `bash` 工具：命令文本层无法可靠拦截敏感路径访问，依赖审批门（`--yes` / Web 批准 / 逐次审批）+ 仅可信 LAN 使用。
+- `settings/test` 只打已配置 host；token 只走 header/query bootstrap，CLI 打印用占位符。
