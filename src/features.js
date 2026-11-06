@@ -34,7 +34,7 @@ export function installProjectIsolation(ctx) {
   ctx.on("system-prompt/assemble", async (base, next) => {
     const session = sessionScope.getStore();
     const projects = ctx.get("projects");
-    const extra = session?.binding?.projectId && projects ? projects.instructions(session.binding.projectId) : "";
+    const extra = session?.binding?.projectId && projects ? projects.instructions(session.binding.projectId).slice(0, 64 * 1024) : "";
     return next(extra ? `${base}\n\n## Project instructions (AGENTS.md)\n${extra}` : base);
   }, "waterfall");
   // Scoped isolation: run fn with fs/shell roots bound to the session's

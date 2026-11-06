@@ -31,10 +31,13 @@ export function installOutputs(ctx) {
       if (!req.projectId || !projects) throw new Error("report_write requires a project-bound session");
       const p = projects.get(req.projectId);
       if (!p) throw new Error(`Project not found: ${req.projectId}`);
+      if (content.length > 200 * 1024) throw new Error("report content too large (200KB)");
       const date = new Date().toISOString().slice(0, 10);
-      const file = `${date}-${slug(title)}.md`;
       const dir = join(p.dir, "outputs");
       mkdirSync(dir, { recursive: true });
+      // Never overwrite: same-day same-title gets a sequence suffix.
+      let file = `${date}-${slug(title)}.md`;
+      for (let n = 2; existsSync(join(dir, file)); n++) file = `${date}-${slug(title)}-${n}.md`;
       writeFileSync(join(dir, file), `# ${title}\n\n${content}\n`);
       return `report written: outputs/${file}`;
     },

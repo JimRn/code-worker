@@ -1,8 +1,8 @@
 // Skills: progressive disclosure (L1 index in prompt, L2 on demand).
 // Layout per skill: skills/<name>/SKILL.md with YAML-ish frontmatter
 // (name, description) + body; extra files under the skill dir are resources.
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { sessionScope } from "./session.js";
 
 export function parseFrontmatter(text) {
@@ -40,9 +40,16 @@ export function loadSkill(projects, projectId, name, resource) {
   const f = join(dir, "SKILL.md");
   if (!existsSync(f)) throw new Error(`Skill not found: ${safe}`);
   const { body } = parseFrontmatter(readFileSync(f, "utf8"));
-  if (!resource) return body;
-  const rf = join(dir, String(resource).replace(/[^\w.\- /]/g, "_"));
-  if (!rf.startsWith(dir) || !existsSync(rf)) throw new Error(`Skill resource not found: ${resource}`);
+  if (!resource) return body.slice(0, 200 * 1024);
+  // Canonicalize + confine + BLOCKED, then size-limit (same discipline as fs seam).
+  let rf = resolve(dir, String(resource).replace(/[^\w.\- /]/g, "_"));
+  let rest = [];
+  while (!existsSync(rf)) { rest.unshift(basename(rf)); rf = dirname(rf); }
+  rf = join(realpathSync(rf), ...rest);
+  const base = realpathSync(dir);
+  if (rf !== base && !rf.startsWith(base + sep)) throw new Error(`Skill resource not found: ${resource}`);
+  if (rf.split(sep).some((s) => [".ssh", ".aws", ".gnupg", ".dsh"].includes(s))) throw new Error("Skill resource in sensitive directory");
+  if (!statSync(rf).isFile() || statSync(rf).size > 200 * 1024) throw new Error("Skill resource too large or missing");
   return `${body}\n\n--- ${resource} ---\n${readFileSync(rf, "utf8")}`;
 }
 

@@ -109,6 +109,11 @@ export function createWebServer({ ctx, store, approval, token }) {
         const body = await readBody(req).catch(() => ({}));
         const binding = body.projectId ? { projectId: body.projectId, repo: body.repo, agent: body.agent } : {};
         if (binding.projectId && !ctx.get("projects").get(binding.projectId)) return sendJson(res, 400, { error: "project not found" });
+        if (binding.agent) {
+          if (!binding.projectId) return sendJson(res, 400, { error: "agent requires a project" });
+          const { loadAgent } = await import("../agents.js");
+          if (!loadAgent(ctx.get("projects"), binding.projectId, binding.agent)) return sendJson(res, 400, { error: "agent not found in project" });
+        }
         const s = store.create(binding);
         return sendJson(res, 201, { id: s.id });
       }

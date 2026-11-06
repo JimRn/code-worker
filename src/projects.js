@@ -62,6 +62,17 @@ export class ProjectStore {
     const p = this.get(projectId);
     if (!p) throw new Error(`Project not found: ${projectId}`);
     if (!existsSync(srcDir) || !statSync(srcDir).isDirectory()) throw new Error("source is not a directory");
+    // Safety caps: file count + total bytes (walk first, copy second).
+    const { readdirSync: rd, statSync: st } = { readdirSync, statSync };
+    let files = 0, bytes = 0;
+    const walk = (d) => {
+      for (const e of rd(d, { withFileTypes: true })) {
+        const full = join(d, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (e.isFile()) { if (++files > 10000) throw new Error("import exceeds 10000 files"); if ((bytes += st(full).size) > 200 * 1024 * 1024) throw new Error("import exceeds 200MB"); }
+      }
+    };
+    walk(srcDir);
     const base = srcDir.split("/").filter(Boolean).pop() || "repo";
     const name = String(base).replace(/[^\w.\- ]/g, "_").slice(0, 60);
     const dest = join(p.dir, "repos", name);

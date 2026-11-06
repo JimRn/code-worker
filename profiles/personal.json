@@ -28,7 +28,9 @@
     "toolResultMaxBytes": 20000,
     "guardedTools": [
       "write_file",
-      "bash"
+      "bash",
+      "report_write",
+      "skill_load"
     ],
     "compaction": {
       "maxContextChars": 60000,

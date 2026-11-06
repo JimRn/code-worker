@@ -44,14 +44,16 @@ export function installAgents(ctx) {
     return next(`${base}\n\n## Agent: ${agent.name}\n${agent.instructions}`);
   }, "waterfall");
   // Tool whitelist enforcement at the executor (like approval): denied at execution time.
+  // Default-deny: a session that declares an agent but whose agent cannot be
+  // loaded denies everything (fail closed, never silently unrestricted).
   ctx.on("tools/pre-execute", async (req, next) => {
     // Prefer the live turn scope; fall back to the session binding by id.
     const scoped = sessionScope.getStore();
     const binding = scoped?.binding ?? (req.sessionId && ctx.get("sessions") ? ctx.get("sessions").open(req.sessionId).binding : null);
-    const agent = binding?.agent
-      ? loadAgent(ctx.get("projects"), binding.projectId, binding.agent)
-      : null;
-    if (agent?.tools && !agent.tools.includes(req.name)) {
+    if (!binding?.agent) return next(req); // no agent bound: unrestricted by design
+    const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent);
+    if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }
+    if (agent.tools && !agent.tools.includes(req.name)) {
       req.denied = `tool ${req.name} not in agent ${agent.name} whitelist`;
     }
     return next(req);

@@ -278,6 +278,7 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+$("#open-files").onclick = (e) => { e.preventDefault(); $("#file-panel").hidden = false; };
 $("#fp-close").onclick = () => { $("#file-panel").hidden = true; };
 $("#fp-refresh").onclick = () => refreshWorkspace();
 
@@ -286,7 +287,6 @@ async function refreshWorkspace() {
   const r = await (await fetch(api(`/workspace?path=${encodeURIComponent(wsPath)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
   $("#ws-root").textContent = r.root || "";
   $("#fp-root").textContent = (r.root || "") + (wsPath === "." ? "" : "/" + wsPath);
-  $("#ws-list").innerHTML = "";
   $("#fp-list").innerHTML =
     (wsPath !== "." ? `<li data-up="1">📁 ..</li>` : "") +
     (r.entries ?? []).map((e) => `<li data-name="${escAttr(e.name)}" class="${e.dir ? "dir" : ""}">${e.dir ? "📁" : "📄"} ${esc(e.name)}</li>`).join("");
