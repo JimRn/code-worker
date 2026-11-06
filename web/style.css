@@ -2,7 +2,9 @@
 * { box-sizing:border-box; }
 body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--text); }
 #app { display:flex; height:100vh; }
-#sidebar { width:240px; background:var(--panel); border-right:1px solid var(--line); padding:12px; display:flex; flex-direction:column; gap:10px; }
+#sidebar { width:240px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; min-height:0; }
+#sidebar > * { flex:none; }
+#session-list { flex:1 1 auto; min-height:60px; }
 .brand { font-weight:700; font-size:16px; }
 #session-list { list-style:none; margin:0; padding:0; overflow:auto; flex:1; }
 #session-list li { padding:6px 8px; border-radius:6px; cursor:pointer; color:var(--muted); }
