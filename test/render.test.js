@@ -28,5 +28,5 @@ test("frontend: tool cards + clipboard fallback present", () => {
   const js = readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
   assert.match(js, /from "\.\/md\.js"/);
   assert.match(js, /execCommand\("copy"\)/);
-  assert.match(js, /class="toolcall"/);
+  assert.match(js, /tool-block/); assert.match(js, /assistant/reasoning/);
 });
