@@ -126,7 +126,8 @@ export function createWebServer({ ctx, store, approval, token }) {
           try {
             const { readdirSync, realpathSync } = await import("node:fs");
             const { resolve: res2, sep: sep2 } = await import("node:path");
-            const dir = realpathSync(ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined));
+            // Browse the PROJECT root (docs/skills/agents/outputs/repos), not just the repo.
+            const dir = realpathSync(ctx.get("projects").get(projectId).dir);
             const abs = realpathSync(res2(dir, sub));
             if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
             const entries = readdirSync(abs, { withFileTypes: true }).map((d) => ({ name: d.name, dir: d.isDirectory() }));
@@ -150,7 +151,7 @@ export function createWebServer({ ctx, store, approval, token }) {
           if (projectId) {
             const { realpathSync, readFileSync, statSync } = await import("node:fs");
             const { resolve: res2, sep: sep2 } = await import("node:path");
-            const dir = realpathSync(ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined));
+            const dir = realpathSync(ctx.get("projects").get(projectId).dir);
             const abs = realpathSync(res2(dir, sub));
             if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
             if (statSync(abs).isDirectory()) return sendJson(res, 400, { error: "is a directory" });
