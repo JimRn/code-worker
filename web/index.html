@@ -38,9 +38,18 @@
   <main id="main">
     <div id="messages"></div>
     <form id="composer">
-      <select id="model-picker" title="选择模型（per-turn）"></select>
-      <textarea id="input" rows="3" placeholder="输入任务，Enter 发送（Shift+Enter 换行）"></textarea>
-      <button type="submit">发送</button>
+      <textarea id="input" rows="3" placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"></textarea>
+      <div class="composer-bar">
+        <button type="button" id="plus" title="新建会话">＋</button>
+        <select id="perm-picker" title="权限模式">
+          <option value="full">🛡 完全权限</option>
+          <option value="ask">需要审批</option>
+          <option value="per-call">逐次审批</option>
+        </select>
+        <span class="spacer"></span>
+        <select id="model-picker" title="选择模型（per-turn）"></select>
+        <button type="submit" id="send" title="发送（Enter）">↑</button>
+      </div>
     </form>
   </main>
 </div>

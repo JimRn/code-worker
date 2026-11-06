@@ -128,6 +128,12 @@ async function selectSession(id) {
   updateUsage();
 }
 
+$("#plus").onclick = () => $("#new-session").click();
+$("#perm-picker").onchange = (e) => {
+  $("#approve").checked = e.target.value === "full";
+  $("#per-call").checked = e.target.value === "per-call";
+};
+
 $("#new-session").onclick = async () => {
   const { id } = await (await fetch(api("/sessions"), { method: "POST" })).json();
   selectSession(id);
@@ -142,7 +148,7 @@ $("#composer").onsubmit = async (e) => {
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, autoApprove: $("#approve").checked, approvalMode: $("#per-call").checked ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
+    body: JSON.stringify({ text, autoApprove: $("#perm-picker").value === "full", approvalMode: $("#perm-picker").value === "per-call" ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
   });
   $("#status").textContent = "";
 };
