@@ -1,7 +1,7 @@
 // Filesystem seam: Definition (FsService interface) / Provider (LocalFs) / Consumer (tool-fs)
 // Extension plugins depend only on the Definition, never the concrete provider.
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 
 export class FsService {
   async readFile() { throw new Error("abstract"); }
@@ -13,10 +13,20 @@ export class LocalFs extends FsService {
   constructor(workspace) { super(); this.root = resolve(workspace); }
   /** Sensitive directory names: never accessible through the fs seam, at any root. */
   static BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
-  /** Resolve inside workspace; escape/sensitive = loud error (confinement). */
+  /** Resolve inside workspace; escape/sensitive = loud error (confinement).
+   *  Canonicalizes via realpath (nearest existing ancestor + remainder) so
+   *  symlinks inside the workspace cannot escape or enter sensitive dirs. */
   resolve(p) {
-    const abs = resolve(this.root, p);
-    if (abs !== this.root && !abs.startsWith(this.root + sep)) throw new Error(`Path escapes workspace: ${p}`);
+    let abs = resolve(this.root, p);
+    // Canonicalize the deepest existing ancestor, then re-append the remainder.
+    let rest = [];
+    while (!existsSync(abs)) {
+      rest.unshift(basename(abs));
+      abs = dirname(abs);
+    }
+    abs = join(realpathSync(abs), ...rest);
+    const root = realpathSync(this.root);
+    if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes workspace: ${p}`);
     if (abs.split(sep).some((seg) => LocalFs.BLOCKED.has(seg))) throw new Error(`Path in sensitive directory: ${p}`);
     return abs;
   }

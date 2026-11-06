@@ -61,6 +61,13 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
+  /** Capability-scoped todo write: the ONLY write tools may perform on the log. */
+  async writeTodos(todos) {
+    const prev = this.todos();
+    if (JSON.stringify(prev) === JSON.stringify(todos)) return false; // no-change: skip append
+    await this.append("todo/write", { todos });
+    return true;
+  }
   /** Latest todo list from todo/write events (log-only durable state). */
   todos() {
     for (let i = this.events.length - 1; i >= 0; i--) {

@@ -9,9 +9,12 @@ export function validateTodos(todos) {
   if (todos.length > 50) throw new Error("at most 50 todo items");
   return todos.map((t) => {
     if (!t?.content || typeof t.content !== "string") throw new Error("each todo needs a content string");
+    const content = t.content.trim();
+    if (!content) throw new Error("todo content must not be blank");
+    if (content.length > 200) throw new Error(`todo content exceeds 200 chars: ${content.slice(0, 40)}…`);
     const status = t.status ?? "pending";
     if (!STATUSES.has(status)) throw new Error(`invalid status: ${status}`);
-    return { content: t.content.slice(0, 200), status };
+    return { content, status };
   });
 }
 
@@ -40,10 +43,10 @@ export function registerTodoTools(ctx) {
     },
     execute: async ({ todos }, req) => {
       const list = validateTodos(todos);
-      if (!req.session) throw new Error("todo_write requires a session");
-      await req.session.append("todo/write", { todos: list });
+      if (!req.appendTodo) throw new Error("todo_write requires a session");
+      const changed = await req.appendTodo(list);
       const done = list.filter((t) => t.status === "completed").length;
-      return `todos updated: ${done}/${list.length} completed`;
+      return changed ? `todos updated: ${done}/${list.length} completed` : `todos unchanged: ${done}/${list.length} completed`;
     },
   }));
 }

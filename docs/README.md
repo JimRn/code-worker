@@ -12,7 +12,7 @@
 
 ## 速览
 
-- **定位**：个人版 DeepSeek Harness（mini-Cordis），零依赖，仅 Node ≥ 20 内置，约 1857 行。
+- **定位**：个人版 DeepSeek Harness（mini-Cordis），零依赖，仅 Node ≥ 20 内置，约 1900 行（持续增长）。
 - **核心**：`Context`（服务注册 + 类型化事件） + `Session`（append-only 日志，唯一事实源） + 三段式能力缝（Definition / Provider / Consumer）。
 - **入口**：`code-worker/src/cli.js`，经 `profiles/personal.json` + `src/profile.js` 的 `bootProfile()` 装配。
 - **运行**：`node src/cli.js --mock --yes "list files in workspace"`（离线演示）；`npm test`（`node --test`）。

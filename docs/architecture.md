@@ -2,7 +2,7 @@
 
 ![整体架构图](architecture.png)
 
-> PNG 由 `draw_arch.py`（matplotlib）绘制，与下方 Mermaid 图等价；改结构时两处同步。
+> PNG 为 Mermaid 图的静态快照（生成脚本未入库）；改结构时以 Mermaid 为准，PNG 按需重绘。
 
 ## 分层
 
@@ -120,7 +120,6 @@ turn/start → claim → snapshot model → assemble prompt+tools
 | `GET/POST` | `/api/sessions` | 列出 / 创建会话 |
 | `GET` | `/api/sessions/:id` | 读取会话事件 |
 | `GET` | `/api/sessions/:id/stream` | SSE：先重放历史再推 live 事件 |
-| `GET` | `/api/sessions/:id/events` | 订阅事件流 |
 | `POST` | `/api/sessions/:id/turn` | 提交一轮用户输入 |
 | `POST` | `/api/sessions/:id/compact` | 手动触发 compaction |
 
