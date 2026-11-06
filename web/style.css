@@ -38,7 +38,15 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #input::placeholder { color:var(--muted); }
 .composer-bar { display:flex; align-items:center; gap:10px; }
 .composer-bar .spacer { flex:1; }
+#plus-wrap { position:relative; }
 #plus { width:32px; height:32px; border-radius:50%; background:#21262d; border:1px solid var(--line); color:var(--text); font-size:18px; line-height:1; cursor:pointer; }
+#plus-menu { position:absolute; bottom:40px; left:0; width:340px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px; box-shadow:0 8px 30px #0008; z-index:10; }
+#plus-menu[hidden] { display:none; }
+#plus-menu .menu-head { color:var(--muted); font-size:11px; padding:6px 10px 2px; }
+#plus-menu button { display:flex; width:100%; background:transparent; border:0; color:var(--text); text-align:left; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:14px; align-items:baseline; gap:6px; }
+#plus-menu button:hover { background:#21262d; }
+#plus-menu button span { color:var(--muted); font-size:12px; }
+#plus-menu button em { margin-left:auto; color:var(--muted); font-size:11px; font-style:normal; }
 #perm-picker, #model-picker { background:transparent; color:var(--muted); border:0; font-size:13px; cursor:pointer; outline:0; }
 #model-picker { max-width:220px; }
 #send { width:36px; height:36px; border-radius:50%; background:#7aa2f7; color:#fff; border:0; font-size:18px; cursor:pointer; }

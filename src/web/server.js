@@ -71,6 +71,23 @@ export function createWebServer({ ctx, store, approval, token }) {
         res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
         return res.end(readFileSync(full));
       }
+      // --- file upload (user-initiated; lands in workspace uploads/) ---
+      if (url.pathname === "/api/upload" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!body.name || !body.content) return sendJson(res, 400, { error: "name and content (base64) required" });
+        const buf = Buffer.from(body.content, "base64");
+        if (buf.length > 5 * 1024 * 1024) return sendJson(res, 413, { error: "file too large (5MB)" });
+        const safe = body.name.replace(/[^\w.\- ]/g, "_").slice(0, 100);
+        await ctx.require("fs").writeFile(`uploads/${safe}`, buf.toString("utf8"));
+        return sendJson(res, 201, { path: `uploads/${safe}` });
+      }
+      // --- session export (download log as .jsonl) ---
+      const em = url.pathname.match(/^\/api\/sessions\/([\w-]+)\/export$/);
+      if (em && req.method === "GET") {
+        const session = store.open(em[1]);
+        res.writeHead(200, { "content-type": "application/x-ndjson", "content-disposition": `attachment; filename="session-${session.id}.jsonl"` });
+        return res.end(session.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+      }
       // --- workspace: list + switch (fs seam root moves; tools follow) ---
       if (url.pathname === "/api/workspace" && req.method === "GET") {
         const fs = ctx.require("fs");

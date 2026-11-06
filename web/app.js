@@ -128,7 +128,36 @@ async function selectSession(id) {
   updateUsage();
 }
 
-$("#plus").onclick = () => $("#new-session").click();
+$("#plus").onclick = () => { $("#plus-menu").hidden = !$("#plus-menu").hidden; };
+document.addEventListener("click", (e) => { if (!e.target.closest("#plus-wrap")) $("#plus-menu").hidden = true; });
+$("#file-input").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const buf = await f.arrayBuffer();
+  let bin = "";
+  for (const b of new Uint8Array(buf)) bin += String.fromCharCode(b);
+  const r = await (await fetch(api("/upload"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: f.name, content: btoa(bin) }) })).json();
+  $("#input").value += r.path ? `@${r.path} ` : "";
+  $("#input").focus();
+};
+$("#plus-menu").querySelectorAll("button").forEach((b) => (b.onclick = async () => {
+  $("#plus-menu").hidden = true;
+  const act = b.dataset.act;
+  if (act === "file") $("#file-input").click();
+  else if (act === "compact" && currentId) {
+    $("#status").textContent = "压缩中…";
+    const r = await (await fetch(api(`/sessions/${currentId}/compact`), { method: "POST" })).json();
+    $("#status").textContent = r.compacted ? "已压缩" : "无需压缩";
+  }
+  else if (act === "export" && currentId) location.href = api(`/sessions/${currentId}/export`);
+  else if (act === "permission") $("#perm-picker").focus();
+  else if (act === "model") $("#model-picker").focus();
+  else if (act === "goal" || act === "plan" || act === "feedback") {
+    const label = { goal: "目标", plan: "计划", feedback: "反馈" }[act];
+    const text = prompt(`输入${label}内容（将作为消息发送）：`);
+    if (text) { $("#input").value = `/${act} ${text}`; $("#composer").requestSubmit(); }
+  }
+}));
 $("#perm-picker").onchange = (e) => {
   $("#approve").checked = e.target.value === "full";
   $("#per-call").checked = e.target.value === "per-call";
