@@ -248,19 +248,34 @@ $("#test-settings").onclick = async () => {
   $("#settings-status").textContent = r.ok ? `连接正常${r.models?.length ? `，可用模型 ${r.models.length}+` : ""}` : `失败：${r.error || r.status}`;
 };
 
-// --- Workspace browser ---
+// --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
+$("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+$("#fp-close").onclick = () => { $("#file-panel").hidden = true; };
+$("#fp-refresh").onclick = () => refreshWorkspace();
+
 async function refreshWorkspace() {
   const pid = $("#project-picker").value;
   const r = await (await fetch(api(`/workspace?path=${encodeURIComponent(wsPath)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
   $("#ws-root").textContent = r.root || "";
-  $("#ws-list").innerHTML =
+  $("#fp-root").textContent = (r.root || "") + (wsPath === "." ? "" : "/" + wsPath);
+  $("#ws-list").innerHTML = "";
+  $("#fp-list").innerHTML =
     (wsPath !== "." ? `<li data-up="1">📁 ..</li>` : "") +
     (r.entries ?? []).map((e) => `<li data-name="${escAttr(e.name)}" class="${e.dir ? "dir" : ""}">${e.dir ? "📁" : "📄"} ${esc(e.name)}</li>`).join("");
-  document.querySelectorAll("#ws-list li").forEach((li) => (li.onclick = () => {
+  document.querySelectorAll("#fp-list li").forEach((li) => (li.onclick = async () => {
     if (li.dataset.up) wsPath = wsPath.split("/").slice(0, -1).join("/") || ".";
     else if (li.classList.contains("dir")) wsPath = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;
-    else return;
+    else {
+      // file: preview
+      const p = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;
+      const d = await (await fetch(api(`/workspace/read?path=${encodeURIComponent(p)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
+      const pre = $("#fp-preview");
+      pre.hidden = false;
+      pre.textContent = d.content ?? d.error ?? "";
+      return;
+    }
+    $("#fp-preview").hidden = true;
     refreshWorkspace();
   }));
 }

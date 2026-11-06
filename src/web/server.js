@@ -142,6 +142,29 @@ export function createWebServer({ ctx, store, approval, token }) {
           return sendJson(res, 400, { error: err.message });
         }
       }
+      if (url.pathname === "/api/workspace/read" && req.method === "GET") {
+        const projectId = url.searchParams.get("projectId");
+        const sub = url.searchParams.get("path") || "";
+        try {
+          let content;
+          if (projectId) {
+            const { realpathSync, readFileSync, statSync } = await import("node:fs");
+            const { resolve: res2, sep: sep2 } = await import("node:path");
+            const dir = realpathSync(ctx.get("projects").repoDir(projectId, url.searchParams.get("repo") || undefined));
+            const abs = realpathSync(res2(dir, sub));
+            if (abs !== dir && !abs.startsWith(dir + sep2)) return sendJson(res, 403, { error: "path escapes project repo" });
+            if (statSync(abs).isDirectory()) return sendJson(res, 400, { error: "is a directory" });
+            if (statSync(abs).size > 200 * 1024) return sendJson(res, 413, { error: "file too large (200KB)" });
+            content = readFileSync(abs, "utf8");
+          } else {
+            content = await ctx.require("fs").readFile(sub);
+            if (content.length > 200 * 1024) return sendJson(res, 413, { error: "file too large (200KB)" });
+          }
+          return sendJson(res, 200, { path: sub, content });
+        } catch (err) {
+          return sendJson(res, 400, { error: err.message });
+        }
+      }
       if (url.pathname === "/api/workspace" && req.method === "PUT") {
         const body = await readBody(req);
         if (!body.path) return sendJson(res, 400, { error: "path is required" });

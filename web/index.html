@@ -38,6 +38,7 @@
     </div>
   </aside>
   <main id="main">
+    <div id="main-head"><button id="toggle-files" type="button" title="文件面板">📁 文件</button></div>
     <div id="messages"></div>
     <form id="composer">
       <textarea id="input" rows="3" placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"></textarea>
@@ -69,6 +70,12 @@
       </div>
     </form>
   </main>
+  <aside id="file-panel" hidden>
+    <div class="fp-tab">📁 文件 <button id="fp-close" type="button" title="关闭">✕</button></div>
+    <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
+    <ul id="fp-list"></ul>
+    <pre id="fp-preview" hidden></pre>
+  </aside>
 </div>
 <script type="module" src="/app.js"></script>
 </body>
