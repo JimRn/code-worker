@@ -22,8 +22,9 @@ export function mdToHtml(text) {
     .replace(/^# (.*)$/gm, "<h1>$1</h1>")
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
-    // link URL: http/https only, quotes stripped so href cannot be broken out of
-    .replace(/\[([^\]]+)\]\((https?:[^)\s"']+)\)/g, (_, label, url) => `<a href="${escAttr(url)}" target="_blank" rel="noopener">${label}</a>`);
+    // link URL: http/https only, quotes excluded by charset so href cannot be
+    // broken out of; url is already-escaped text (no second escape).
+    .replace(/\[([^\]]+)\]\((https?:[^)\s"']+)\)/g, (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`);
   const lines = html.split("\n");
   let out = "", inList = false;
   for (const line of lines) {
