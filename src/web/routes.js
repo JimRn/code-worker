@@ -27,6 +27,11 @@ export function registerProjectRoutes(app) {
     if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
     sendJson(res, 201, { repo: projects().addRepo(m[1], body.name) });
   });
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/agents$/, async (req, res, m) => {
+    if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
+    const { agentList } = await import("../agents.js");
+    sendJson(res, 200, { agents: agentList(projects(), m[1]) });
+  });
   app.route("PUT", /^\/api\/projects\/([\w-]+)\/instructions$/, async (req, res, m) => {
     const project = projects().get(m[1]);
     if (!project) return sendJson(res, 404, { error: "project not found" });

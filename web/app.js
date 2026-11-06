@@ -174,6 +174,14 @@ async function refreshProjects() {
   $("#project-picker").innerHTML =
     `<option value="">（无 Project，全局 workspace）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
+  refreshAgents();
+}
+async function refreshAgents() {
+  const pid = $("#project-picker").value;
+  $("#agent-picker").innerHTML = `<option value="">（默认 Agent）</option>`;
+  if (!pid) return;
+  const { agents } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`))).json();
+  $("#agent-picker").innerHTML += agents.map((a) => `<option value="${escAttr(a.name)}">${esc(a.name)}</option>`).join("");
 }
 $("#new-project").onclick = async () => {
   const name = prompt("Project 名称：");
@@ -182,11 +190,12 @@ $("#new-project").onclick = async () => {
   await refreshProjects();
   refreshSessions();
 };
-$("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refreshWorkspace(); };
+$("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refreshWorkspace(); refreshAgents(); };
 
 $("#new-session").onclick = async () => {
   const projectId = $("#project-picker").value || undefined;
-  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId }) })).json();
+  const agent = $("#agent-picker").value || undefined;
+  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent }) })).json();
   selectSession(id);
 };
 

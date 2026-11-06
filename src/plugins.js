@@ -13,6 +13,7 @@ import { ProjectStore } from "./projects.js";
 import { installApprovalGuard } from "./tools.js";
 import { installProjectIsolation, installTitleGenerator, CompactionService } from "./features.js";
 import { installSkills } from "./skills.js";
+import { installAgents } from "./agents.js";
 
 export const PLUGINS = {
   session: (ctx, env) => ctx.provide("sessions", new SessionStore(env.home ?? ".code-worker/sessions")),
@@ -35,6 +36,7 @@ export const PLUGINS = {
   "project-isolation": (ctx) => installProjectIsolation(ctx),
   "title-generator": (ctx) => installTitleGenerator(ctx),
   skills: (ctx) => installSkills(ctx),
+  agents: (ctx) => installAgents(ctx),
   "agent-loop": (ctx, env) => ctx.provide("agentLoop", new AgentLoop(ctx, {
     maxSteps: env.maxSteps, toolResultMaxBytes: env.toolResultMaxBytes,
     provider: "openai-compatible", config: env.modelConfig,

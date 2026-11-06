@@ -107,7 +107,7 @@ export function createWebServer({ ctx, store, approval, token }) {
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const body = await readBody(req).catch(() => ({}));
-        const binding = body.projectId ? { projectId: body.projectId, repo: body.repo } : {};
+        const binding = body.projectId ? { projectId: body.projectId, repo: body.repo, agent: body.agent } : {};
         if (binding.projectId && !ctx.get("projects").get(binding.projectId)) return sendJson(res, 400, { error: "project not found" });
         const s = store.create(binding);
         return sendJson(res, 201, { id: s.id });
