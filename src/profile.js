@@ -1,6 +1,7 @@
 // Profile loader: compose a plugin tree from an ordered profile (personal.json).
 // Mirrors DSH: profile bundles apply in order; every registration is a reversible effect.
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { Context } from "./context.js";
 import { SessionStore } from "./session.js";
 import { ToolRegistry, installApprovalGuard } from "./tools.js";
@@ -32,7 +33,7 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   // todo (model-facing list, durable log-only events)
   registerTodoTools(ctx);
   // projects (project-level management, strict per-project isolation)
-  ctx.provide("projects", new ProjectStore());
+  ctx.provide("projects", new ProjectStore(join(profile.home ?? ".code-worker", "projects")));
   // settings (Web settings page): persisted model config, seeded from env/CLI.
   const settings = new SettingsStore(profile.home ?? ".code-worker");
   ctx.provide("settings", settings);
