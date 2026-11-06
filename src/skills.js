@@ -1,0 +1,68 @@
+// Skills: progressive disclosure (L1 index in prompt, L2 on demand).
+// Layout per skill: skills/<name>/SKILL.md with YAML-ish frontmatter
+// (name, description) + body; extra files under the skill dir are resources.
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { sessionScope } from "./session.js";
+
+export function parseFrontmatter(text) {
+  const m = text.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!m) return { meta: {}, body: text };
+  const meta = {};
+  for (const line of m[1].split("\n")) {
+    const kv = line.match(/^(\w+):\s*(.*)$/);
+    if (kv) meta[kv[1]] = kv[2].trim();
+  }
+  return { meta, body: text.slice(m[0].length) };
+}
+
+/** L1 index: [{name, description}] for every skill in the project. */
+export function skillIndex(projects, projectId) {
+  if (!projectId || !projects) return [];
+  const dir = join(projects.dir, projectId, "skills");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => {
+      const f = join(dir, d.name, "SKILL.md");
+      if (!existsSync(f)) return null;
+      const { meta } = parseFrontmatter(readFileSync(f, "utf8"));
+      return { name: meta.name || d.name, description: meta.description || "" };
+    })
+    .filter(Boolean);
+}
+
+/** L2 load: full SKILL.md body (+ optional resource file inside the skill dir). */
+export function loadSkill(projects, projectId, name, resource) {
+  if (!projectId || !projects) throw new Error("skill_load requires a project-bound session");
+  const safe = String(name).replace(/[^\w.\-]/g, "_");
+  const dir = join(projects.dir, projectId, "skills", safe);
+  const f = join(dir, "SKILL.md");
+  if (!existsSync(f)) throw new Error(`Skill not found: ${safe}`);
+  const { body } = parseFrontmatter(readFileSync(f, "utf8"));
+  if (!resource) return body;
+  const rf = join(dir, String(resource).replace(/[^\w.\- /]/g, "_"));
+  if (!rf.startsWith(dir) || !existsSync(rf)) throw new Error(`Skill resource not found: ${resource}`);
+  return `${body}\n\n--- ${resource} ---\n${readFileSync(rf, "utf8")}`;
+}
+
+/** Plugin: L1 index injection + skill_load tool. */
+export function installSkills(ctx) {
+  ctx.on("system-prompt/assemble", async (base, next) => {
+    const session = sessionScope.getStore();
+    const index = skillIndex(ctx.get("projects"), session?.binding?.projectId);
+    if (!index.length) return next(base);
+    const lines = index.map((s) => `- ${s.name}: ${s.description}`).join("\n");
+    return next(`${base}\n\n## Available skills (load with skill_load when needed)\n${lines}`);
+  }, "waterfall");
+  ctx.effect(() => ctx.require("tools").register({
+    name: "skill_load",
+    description: "Load a skill's full instructions (progressive disclosure L2).",
+    schema: {
+      type: "object",
+      properties: { name: { type: "string" }, resource: { type: "string" } },
+      required: ["name"],
+    },
+    execute: async ({ name, resource }, req) => loadSkill(ctx.get("projects"), req.projectId, name, resource),
+  }));
+}

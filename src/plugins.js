@@ -12,6 +12,7 @@ import { registerTodoTools } from "./todo.js";
 import { ProjectStore } from "./projects.js";
 import { installApprovalGuard } from "./tools.js";
 import { installProjectIsolation, installTitleGenerator, CompactionService } from "./features.js";
+import { installSkills } from "./skills.js";
 
 export const PLUGINS = {
   session: (ctx, env) => ctx.provide("sessions", new SessionStore(env.home ?? ".code-worker/sessions")),
@@ -33,6 +34,7 @@ export const PLUGINS = {
   compaction: (ctx, env) => ctx.provide("compaction", new CompactionService(ctx, env.compaction)),
   "project-isolation": (ctx) => installProjectIsolation(ctx),
   "title-generator": (ctx) => installTitleGenerator(ctx),
+  skills: (ctx) => installSkills(ctx),
   "agent-loop": (ctx, env) => ctx.provide("agentLoop", new AgentLoop(ctx, {
     maxSteps: env.maxSteps, toolResultMaxBytes: env.toolResultMaxBytes,
     provider: "openai-compatible", config: env.modelConfig,

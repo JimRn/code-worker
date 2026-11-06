@@ -10,6 +10,7 @@
     "shell-local",
     "tool-bash",
     "todo",
+    "skills",
     "projects",
     "settings",
     "llm",
@@ -23,7 +24,10 @@
     "workspace": ".",
     "maxSteps": 8,
     "toolResultMaxBytes": 20000,
-    "guardedTools": ["write_file", "bash"],
+    "guardedTools": [
+      "write_file",
+      "bash"
+    ],
     "compaction": {
       "maxContextChars": 60000,
       "pruneBytes": 2000,
