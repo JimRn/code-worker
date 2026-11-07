@@ -42,6 +42,7 @@ export class OpenAICompatibleAdapter {
   prepareCall({ model, messages, tools }) {
     const { apiKey, baseUrl, model: cfgModel } = this.resolve();
     const m = model ?? cfgModel;
+    const reasoningEffort = this.config?.reasoningEffort;
     const rawRetries = Number(this.config?.maxRetries ?? process.env.CW_LLM_RETRIES ?? 2);
     const maxRetries = Number.isFinite(rawRetries) ? Math.min(5, Math.max(0, Math.floor(rawRetries))) : 2;
     return async function* () {
@@ -54,7 +55,7 @@ export class OpenAICompatibleAdapter {
           res = await fetch(`${baseUrl}/chat/completions`, {
             method: "POST",
             headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, ...(this.config?.reasoningEffort ? { reasoning_effort: this.config.reasoningEffort } : {}), tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
+            body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}), tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
           });
         } catch (err) {
           if (attempt >= maxRetries) throw err;
