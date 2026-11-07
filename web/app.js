@@ -44,6 +44,8 @@ function closeTurn(ts) {
   const turnEl = currentTurn.el;
   head.onclick = () => turnEl.classList.toggle("collapsed");
   turnEl.appendChild(head); // group root, outside turn-body: collapsing never hides the toggle
+  // finalize tool group label (drop the running suffix)
+  turnEl.querySelectorAll(".tg-label").forEach((el) => { el.textContent = el.textContent.replace(" · 工作中", ""); });
   currentTurn.el.classList.add("done");
   currentTurn = null;
 }
@@ -83,7 +85,7 @@ function renderEvent(ev) {
     const kind = { bash: "Shell", read_file: "读取", write_file: "编辑", list_dir: "读取", todo_write: "任务", skill_load: "技能", report_write: "报告" }[ev.data.name] ?? ev.data.name;
     group._kinds.set(kind, (group._kinds.get(kind) ?? 0) + 1);
     const total = [...group._kinds.values()].reduce((a, b) => a + b, 0);
-    group.querySelector(".tg-label").textContent = `使用了 ${total} 个 ${[...group._kinds.keys()].join("、")}`;
+    group.querySelector(".tg-label").textContent = `使用了 ${total} 个 ${[...group._kinds.keys()].join("、")}${currentTurn ? " · 工作中" : ""}`;
     const block = document.createElement("div");
     block.className = "tool-block";
     const summary = ev.data.args?.command ?? ev.data.args?.path ?? JSON.stringify(ev.data.args);
