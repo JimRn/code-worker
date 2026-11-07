@@ -17,8 +17,11 @@ if (existsSync(join(root, ".env"))) {
   }
 }
 
-// dsh proxy: if ~/.dsh/env exists, load its HTTP(S)_PROXY exports (free-vpn)
-// so LLM fetch goes through the same proxy as dsh. Explicit shell env wins.
+// dsh proxy: if ~/.dsh/env exists, load its HTTP(S)_PROXY exports (free-vpn).
+// IMPORTANT: Node's fetch only honors proxy env vars at PROCESS START
+// (--use-env-proxy flag); setting them at runtime is too late. So when a
+// proxy is configured and we are not already the re-exec'd child, restart
+// ourselves with the flag. Explicit shell env wins over ~/.dsh/env.
 const dshEnv = process.env.DSH_ENV ?? join(process.env.HOME ?? "", ".dsh", "env");
 if (existsSync(dshEnv)) {
   for (const line of readFileSync(dshEnv, "utf8").split("\n")) {
@@ -27,6 +30,15 @@ if (existsSync(dshEnv)) {
       process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
     }
   }
+}
+if ((process.env.HTTPS_PROXY || process.env.HTTP_PROXY) && !process.env.CW_PROXY_REEXEC && !process.execArgv.includes("--use-env-proxy")) {
+  const { spawn } = await import("node:child_process");
+  const child = spawn(process.execPath, ["--use-env-proxy", fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
+    stdio: "inherit",
+    env: { ...process.env, CW_PROXY_REEXEC: "1", NODE_USE_ENV_PROXY: "1" },
+  });
+  child.on("exit", (code) => process.exit(code ?? 1));
+  await new Promise(() => {}); // parent waits for child
 }
 
 const args = process.argv.slice(2);
