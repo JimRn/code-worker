@@ -40,8 +40,7 @@ if ((process.env.HTTPS_PROXY || process.env.HTTP_PROXY) && !process.env.CW_PROXY
   });
   child.on("error", (err) => { console.error(`[proxy re-exec] failed: ${err.message}`); process.exit(1); });
   child.on("exit", (code) => process.exit(code ?? 1));
-  setTimeout(() => { console.error("[proxy re-exec] child did not start in 5s"); process.exit(1); }, 5000);
-  await new Promise(() => {}); // parent waits for child
+  await new Promise(() => {}); // parent waits for child (error/exit above end it)
 }
 
 const args = process.argv.slice(2);
