@@ -10,12 +10,13 @@ test("web: static + session RPC + turn over SSE", async () => {
   const ws = mkdtempSync(join(tmpdir(), "cw-web-ws-"));
   const approval = { current: true };
   const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, mock: true, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
+  const proj = ctx.require("projects").create("t");
   const server = await startWebServer({ ctx, store, approval }, 0);
   const base = `http://localhost:${server.address().port}`;
   try {
     const html = await (await fetch(`${base}/`)).text();
     assert.match(html, /Code Worker/);
-    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST" })).json();
+    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id }) })).json();
     assert.ok(id);
     const res = await fetch(`${base}/api/sessions/${id}/turn`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "list files", autoApprove: true }) });
     assert.equal(res.status, 202);

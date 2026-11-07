@@ -17,9 +17,11 @@ test("sessions filtered by projectId", async () => {
     const p = ctx.require("projects").create("filt");
     const mk = async (body) => (await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json()).id;
     const inProj = await mk({ projectId: p.id });
-    await mk({});
+    // sessions must be project-scoped: unbound create is rejected
+    const rejected = await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(rejected.status, 400);
     const all = await (await fetch(`${base}/api/sessions`)).json();
-    assert.equal(all.sessions.length, 2);
+    assert.equal(all.sessions.length, 1);
     const filtered = await (await fetch(`${base}/api/sessions?projectId=${p.id}`)).json();
     assert.deepEqual(filtered.sessions.map((s) => s.id), [inProj]);
     assert.equal(filtered.sessions[0].projectId, p.id);
