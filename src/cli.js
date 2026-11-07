@@ -17,6 +17,18 @@ if (existsSync(join(root, ".env"))) {
   }
 }
 
+// dsh proxy: if ~/.dsh/env exists, load its HTTP(S)_PROXY exports (free-vpn)
+// so LLM fetch goes through the same proxy as dsh. Explicit shell env wins.
+const dshEnv = process.env.DSH_ENV ?? join(process.env.HOME ?? "", ".dsh", "env");
+if (existsSync(dshEnv)) {
+  for (const line of readFileSync(dshEnv, "utf8").split("\n")) {
+    const m = line.match(/^\s*(?:export\s+)?([\w.]+)\s*=\s*(.*)\s*$/);
+    if (m && /^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|NODE_USE_ENV_PROXY)$/.test(m[1]) && !process.env[m[1]]) {
+      process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const val = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : undefined; };
