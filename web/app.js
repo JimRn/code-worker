@@ -130,6 +130,10 @@ function renderEvent(ev) {
     div.className = "msg user";
     div.innerHTML = `${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
     div.querySelector(".copy").onclick = (e) => copyText(ev.data.text, e.target);
+    // User message heads its turn group (tool/reasoning blocks follow below it).
+    (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return;
   }
   else if (ev.type === "assistant/message") {
     // Tool-only steps have no visible text: tools already render as blocks.
@@ -141,6 +145,9 @@ function renderEvent(ev) {
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
     div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
     if (ev.data.usage) updateUsage();
+    (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return;
   }
   else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
