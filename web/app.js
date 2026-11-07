@@ -38,6 +38,9 @@ function closeTurn(ts) {
   const secs = Math.max(1, Math.round((ts - currentTurn.startTs) / 1000));
   currentTurn.el.querySelector(".turn-label").textContent = `已完成，用时 ${secs} 秒`;
   currentTurn.el.classList.add("done");
+  // Status goes at the END of the turn (below user message + tools + reply),
+  // never above the user's own message.
+  currentTurn.el.querySelector(".turn-body").appendChild(currentTurn.el.querySelector(".turn-head"));
   currentTurn = null;
 }
 
