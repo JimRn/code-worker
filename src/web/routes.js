@@ -68,6 +68,7 @@ export function registerSettingsRoutes(app) {
     const view = settings().update(body);
     if (body.baseUrl !== undefined) modelConfig().baseUrl = body.baseUrl || undefined;
     if (body.model !== undefined) modelConfig().model = body.model || undefined;
+    if (body.reasoningEffort !== undefined) modelConfig().reasoningEffort = body.reasoningEffort || undefined;
     if (body.apiKey) modelConfig().apiKey = body.apiKey;
     sendJson(res, 200, view);
   });

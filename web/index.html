@@ -34,6 +34,7 @@
     <div id="settings-panel" hidden>
       <label>Base URL <input id="set-baseurl" placeholder="https://api.openai.com/v1"></label>
       <label>模型 <input id="set-model" placeholder="gpt-4o-mini"></label>
+      <label>推理强度 <select id="set-reasoning"><option value="">关闭</option><option value="low">低 low</option><option value="medium">中 medium</option><option value="high">高 high</option></select></label>
       <label>API Key <input id="set-apikey" type="password" autocomplete="new-password" placeholder=""></label>
       <div class="row"><button id="save-settings" type="button">保存</button><button id="test-settings" type="button">测试连接</button></div>
       <div id="settings-status" class="status"></div>

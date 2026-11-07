@@ -54,7 +54,7 @@ export class OpenAICompatibleAdapter {
           res = await fetch(`${baseUrl}/chat/completions`, {
             method: "POST",
             headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
+            body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, ...(this.config?.reasoningEffort ? { reasoning_effort: this.config.reasoningEffort } : {}), tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
           });
         } catch (err) {
           if (attempt >= maxRetries) throw err;

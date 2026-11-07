@@ -26,11 +26,12 @@ export class SettingsStore {
     return {
       baseUrl: s.baseUrl ?? "",
       model: s.model ?? "",
+      reasoningEffort: s.reasoningEffort ?? "",
       hasApiKey: Boolean(c.apiKey),
     };
   }
   /** Save config; apiKey is written only when a non-empty value is provided. */
-  update({ baseUrl, model, apiKey }) {
+  update({ baseUrl, model, apiKey, reasoningEffort }) {
     if (baseUrl !== undefined) {
       if (baseUrl && !/^https?:\/\//.test(baseUrl)) throw new Error("baseUrl must be an http(s) URL");
       const s = readJson(this.settingsFile, {});
@@ -40,6 +41,13 @@ export class SettingsStore {
     if (model !== undefined) {
       const s = readJson(this.settingsFile, {});
       s.model = model;
+      atomicWrite(this.settingsFile, s);
+    }
+    if (reasoningEffort !== undefined) {
+      if (reasoningEffort && !["low", "medium", "high"].includes(reasoningEffort)) throw new Error("reasoningEffort must be low/medium/high or empty");
+      const s = readJson(this.settingsFile, {});
+      if (reasoningEffort) s.reasoningEffort = reasoningEffort;
+      else delete s.reasoningEffort;
       atomicWrite(this.settingsFile, s);
     }
     if (apiKey) { // empty = leave stored credential untouched (never echo secrets)
@@ -58,6 +66,6 @@ export class SettingsStore {
   getApiKey() { return readJson(this.credsFile, {}).apiKey; }
   getConfig() {
     const s = readJson(this.settingsFile, {});
-    return { baseUrl: s.baseUrl, model: s.model, apiKey: this.getApiKey() };
+    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, apiKey: this.getApiKey() };
   }
 }

@@ -333,6 +333,7 @@ async function loadSettings() {
   const s = await (await fetch(api("/settings"))).json();
   $("#set-baseurl").value = s.baseUrl || "";
   $("#set-model").value = s.model || "";
+  $("#set-reasoning").value = s.reasoningEffort || "";
   $("#set-apikey").value = "";
   $("#set-apikey").placeholder = s.hasApiKey ? "已保存（留空则不修改）" : "sk-...";
   $("#model-info").textContent = s.model ? `模型：${s.model}` : "";
@@ -345,7 +346,7 @@ async function refreshModelPicker(current) {
 }
 
 $("#save-settings").onclick = async () => {
-  const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim() };
+  const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim(), reasoningEffort: $("#set-reasoning").value };
   const key = $("#set-apikey").value.trim();
   if (key) body.apiKey = key;
   const r = await fetch(api("/settings"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
