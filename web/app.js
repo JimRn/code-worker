@@ -259,8 +259,9 @@ $("#perm-picker").onchange = (e) => {
 async function refreshProjects() {
   const { projects } = await (await fetch(api("/projects"))).json();
   $("#project-picker").innerHTML =
-    `<option value="">（无 Project，全局 workspace）</option>` +
+    `<option value="">（先选择 Project）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
+  $("#new-session").disabled = !$("#project-picker").value;
   refreshAgents();
   refreshRepos();
 }
@@ -297,6 +298,7 @@ $("#new-project").onclick = async () => {
 $("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refreshWorkspace(); refreshAgents(); };
 
 $("#new-session").onclick = async () => {
+  if (!$("#project-picker").value) { alert("先选择 Project（会话必须属于某个 Project）"); return; }
   const projectId = $("#project-picker").value || undefined;
   const agent = $("#agent-picker").value || undefined;
   const repo = $("#repo-picker").value || undefined;

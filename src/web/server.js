@@ -107,7 +107,8 @@ export function createWebServer({ ctx, store, approval, token }) {
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const body = await readBody(req).catch(() => ({}));
-        const binding = body.projectId ? { projectId: body.projectId, repo: body.repo, agent: body.agent } : {};
+        if (!body.projectId) return sendJson(res, 400, { error: "projectId is required (sessions must be project-scoped)" });
+        const binding = { projectId: body.projectId, repo: body.repo, agent: body.agent };
         const { validateBinding } = await import("../binding.js");
         const v = validateBinding(ctx.get("projects"), binding);
         if (!v.ok) return sendJson(res, 400, { error: v.error });
