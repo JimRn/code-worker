@@ -76,7 +76,7 @@ function renderEvent(ev) {
     let group = host.querySelector(".tool-group");
     if (!group) {
       group = document.createElement("div");
-      group.className = "tool-group";
+      group.className = "tool-group collapsed"; // folded by default during conversation too
       group.innerHTML = `<button class="tg-head"><span class="tg-label"></span> <span class="chev">⌃</span></button><div class="tg-body"></div>`;
       group.querySelector(".tg-head").onclick = () => group.classList.toggle("collapsed");
       host.appendChild(group);
@@ -87,7 +87,7 @@ function renderEvent(ev) {
     const total = [...group._kinds.values()].reduce((a, b) => a + b, 0);
     group.querySelector(".tg-label").textContent = `使用了 ${total} 个 ${[...group._kinds.keys()].join("、")}${currentTurn ? " · 工作中" : ""}`;
     const block = document.createElement("div");
-    block.className = "tool-block";
+    block.className = "tool-block collapsed"; // collapsed by default, even mid-turn
     const summary = ev.data.args?.command ?? ev.data.args?.path ?? ev.data.args?.title ?? ev.data.name ?? {};
     block.innerHTML = `<button class="tb-head">⌃ ${esc(kind)} <code>${esc(String(summary).slice(0, 80))}</code></button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
     block.querySelector(".tb-head").onclick = () => block.classList.toggle("collapsed");
