@@ -56,7 +56,15 @@ function renderEvent(ev) {
     currentTurn = { el: turn, startTs: ev.ts, tools: new Map() };
     return;
   }
-  if (ev.type === "turn/end") { closeTurn(ev.ts); return; }
+  if (ev.type === "turn/end") {
+    // Any tool block still without output means the turn died mid-tool: mark it.
+    currentTurn?.el.querySelectorAll(".tool-block").forEach((b) => {
+      if (!b.querySelector(".tb-out").textContent) b.querySelector(".tb-out").textContent = "(未完成：轮次中断)";
+      b.classList.add("collapsed", "done");
+    });
+    closeTurn(ev.ts);
+    return;
+  }
   if (ev.type === "tool/call") {
     const host = currentTurn ? currentTurn.el.querySelector(".turn-body") : box;
     const block = document.createElement("div");
