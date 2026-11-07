@@ -70,7 +70,10 @@ export class OpenAICompatibleAdapter {
         }
         await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
       }
-      if (!res.ok) throw new Error(`LLM HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+      if (!res.ok) {
+        const reqChars = JSON.stringify(messages).length;
+        throw new Error(`LLM HTTP ${res.status} (req ~${reqChars} chars, ${messages.length} msgs): ${(await res.text()).slice(0, 500)}`);
+      }
       let usage = null;
       let text = "";
       let reasoning = "";
