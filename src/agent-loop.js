@@ -54,7 +54,7 @@ export class AgentLoop {
         await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined, reasoning: result.reasoning ?? undefined });
         if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
         for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
-        const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId });
+        const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding });
         for (const r of results) await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
         await session.append("step/end", { step });
       }

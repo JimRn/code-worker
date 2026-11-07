@@ -3,6 +3,7 @@
 // (name, description) + body; extra files under the skill dir are resources.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
+import { cachedRead } from "./file-cache.js";
 import { sessionScope } from "./session.js";
 
 export function parseFrontmatter(text) {
@@ -24,9 +25,9 @@ export function skillIndex(projects, projectId) {
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const f = join(dir, d.name, "SKILL.md");
-      if (!existsSync(f)) return null;
-      const { meta } = parseFrontmatter(readFileSync(f, "utf8"));
+      const content = cachedRead(join(dir, d.name, "SKILL.md"));
+      if (!content) return null;
+      const { meta } = parseFrontmatter(content);
       return { name: meta.name || d.name, description: meta.description || "" };
     })
     .filter(Boolean);

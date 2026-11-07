@@ -2,8 +2,9 @@
 // agents/<name>/AGENTS.md with frontmatter: description, tools (whitelist).
 // The agent's instructions stack on the project's; its tool whitelist
 // restricts which tools the session may call.
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { cachedRead } from "./file-cache.js";
 import { parseFrontmatter } from "./skills.js";
 import { sessionScope } from "./session.js";
 
@@ -15,9 +16,9 @@ export function agentList(projects, projectId) {
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const f = join(dir, d.name, "AGENTS.md");
-      if (!existsSync(f)) return null;
-      const { meta } = parseFrontmatter(readFileSync(f, "utf8"));
+      const content = cachedRead(join(dir, d.name, "AGENTS.md"));
+      if (!content) return null;
+      const { meta } = parseFrontmatter(content);
       return { name: meta.name || d.name, description: meta.description || "" };
     })
     .filter(Boolean);
@@ -27,8 +28,9 @@ export function agentList(projects, projectId) {
 export function loadAgent(projects, projectId, name) {
   if (!projectId || !projects) return null;
   const f = join(projects.dir, projectId, "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
-  if (!existsSync(f)) return null;
-  const { meta, body } = parseFrontmatter(readFileSync(f, "utf8"));
+  const content = cachedRead(f);
+  if (!content) return null;
+  const { meta, body } = parseFrontmatter(content);
   const tools = meta.tools ? meta.tools.split(",").map((t) => t.trim()).filter(Boolean) : null;
   return { name: meta.name || name, instructions: body, tools };
 }
@@ -46,10 +48,10 @@ export function installAgents(ctx) {
   // Tool whitelist enforcement at the executor (like approval): denied at execution time.
   // Default-deny: a session that declares an agent but whose agent cannot be
   // loaded denies everything (fail closed, never silently unrestricted).
+  // Binding comes from the explicit req payload (loop-supplied), never from
+  // reopening the session store inside the guard.
   ctx.on("tools/pre-execute", async (req, next) => {
-    // Prefer the live turn scope; fall back to the session binding by id.
-    const scoped = sessionScope.getStore();
-    const binding = scoped?.binding ?? (req.sessionId && ctx.get("sessions") ? ctx.get("sessions").open(req.sessionId).binding : null);
+    const binding = req.binding ?? sessionScope.getStore()?.binding ?? null;
     if (!binding?.agent) return next(req); // no agent bound: unrestricted by design
     const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent);
     if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }

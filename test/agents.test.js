@@ -25,7 +25,7 @@ test("agents: list/load, instruction injection, tool whitelist at executor", asy
     const sys = session.events.filter((e) => e.type === "system/message").at(-1).data.text;
     assert.match(sys, /Agent: reader/);
     // whitelist: bash denied at executor even though autoApprove is on
-    const [r] = await ctx.require("tools").execute([{ id: "1", name: "bash", args: { command: "echo hi" } }], { session, projectId: p.id, sessionId: session.id });
+    const [r] = await ctx.require("tools").execute([{ id: "1", name: "bash", args: { command: "echo hi" } }], { session, projectId: p.id, sessionId: session.id, binding: session.binding });
     assert.match(r.output, /not in agent reader whitelist/);
   } finally {
     await dispose();

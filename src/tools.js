@@ -23,13 +23,13 @@ export class ToolRegistry {
       function: { name: t.name, description: t.description, parameters: t.schema ?? { type: "object", properties: {} } },
     }));
   }
-  async execute(calls, { maxBytes = 20000, sessionId, session, projectId } = {}) {
+  async execute(calls, { maxBytes = 20000, sessionId, session, projectId, binding } = {}) {
     const results = [];
     for (const call of calls) {
       const tool = this.tools.get(call.name);
       if (!tool) { results.push({ callId: call.id, name: call.name, output: `Error: unknown tool ${call.name}`, isError: true }); continue; }
       // Narrow capability: tools get appendTodo only, never the live Session.
-      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, appendTodo: session ? (todos) => session.writeTodos(todos) : undefined };
+      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, appendTodo: session ? (todos) => session.writeTodos(todos) : undefined };
       req = await this.ctx.waterfall("tools/pre-execute", req);
       if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
       let output;

@@ -2,6 +2,7 @@
 // Layout: <projectsDir>/<id>/{project.json, AGENTS.md, docs/, skills/, agents/, outputs/, repos/<repo>/}
 // Env: CW_PROJECTS_DIR overrides the location (default ~/.code-worker/projects).
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cachedRead } from "./file-cache.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -91,9 +92,8 @@ export class ProjectStore {
     if (!name) throw new Error(`Project ${projectId} has no repos`);
     return join(p.dir, "repos", name);
   }
-  /** Project instructions, injected into the system prompt every turn. */
+  /** Project instructions, injected into the system prompt every turn (mtime-cached). */
   instructions(projectId) {
-    const f = join(this.dir, projectId, "AGENTS.md");
-    return existsSync(f) ? readFileSync(f, "utf8") : "";
+    return cachedRead(join(this.dir, projectId, "AGENTS.md")) ?? "";
   }
 }
