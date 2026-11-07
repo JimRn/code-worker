@@ -108,7 +108,9 @@ export class OpenAICompatibleAdapter {
           }
         }
       }
-      const toolCalls = [...tcByIndex.values()].filter((t) => t.name).map((t) => {
+      // Some providers emit null-ish tool calls (name "None"/empty): drop them,
+      // else they poison history and strict providers 400 on "missing field function".
+      const toolCalls = [...tcByIndex.values()].filter((t) => t.name && t.name !== "None").map((t) => {
         let args;
         try { args = JSON.parse(t.arguments || "{}"); } catch { throw new Error(`invalid tool arguments JSON: ${t.arguments}`); }
         return { id: t.id, name: t.name, args };

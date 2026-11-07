@@ -15,11 +15,13 @@ export function deriveMessages(events) {
     if (ev.type === "system/message") msgs.push({ role: "system", content: ev.data.text });
     else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });
     else if (ev.type === "assistant/message") {
-      for (const t of ev.data.toolCalls ?? []) knownCalls.add(t.id);
+      // Drop invalid calls (name "None"/empty) persisted by misbehaving providers.
+      const calls = (ev.data.toolCalls ?? []).filter((t) => t.name && t.name !== "None");
+      for (const t of calls) knownCalls.add(t.id);
       msgs.push({
         role: "assistant", content: ev.data.text || null,
         // Wire format (not internal shape): strict providers reject {name,args}.
-        tool_calls: ev.data.toolCalls?.map((t) => ({ id: t.id, type: "function", function: { name: t.name, arguments: JSON.stringify(t.args ?? {}) } })),
+        tool_calls: calls.length ? calls.map((t) => ({ id: t.id, type: "function", function: { name: t.name, arguments: JSON.stringify(t.args ?? {}) } })) : undefined,
       });
     }
     // Orphan tool results (call id pruned away by compaction) would 400 strict providers.
