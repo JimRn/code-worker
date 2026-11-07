@@ -88,7 +88,7 @@ function renderEvent(ev) {
     group.querySelector(".tg-label").textContent = `使用了 ${total} 个 ${[...group._kinds.keys()].join("、")}${currentTurn ? " · 工作中" : ""}`;
     const block = document.createElement("div");
     block.className = "tool-block";
-    const summary = ev.data.args?.command ?? ev.data.args?.path ?? JSON.stringify(ev.data.args);
+    const summary = ev.data.args?.command ?? ev.data.args?.path ?? ev.data.args?.title ?? ev.data.name ?? {};
     block.innerHTML = `<button class="tb-head">⌃ ${esc(kind)} <code>${esc(String(summary).slice(0, 80))}</code></button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
     block.querySelector(".tb-head").onclick = () => block.classList.toggle("collapsed");
     block.querySelector(".tb-copy").onclick = (e) => copyText(JSON.stringify(ev.data.args), e.target);
@@ -279,8 +279,9 @@ async function refreshProjects() {
   $("#project-picker").innerHTML =
     `<option value="">（先选择 Project）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
-  $("#new-session").disabled = !$("#project-picker").value;
   refreshAgents();
+  $("#new-session").disabled = !$("#project-picker").value;
+  refreshSessions();
   refreshRepos();
 }
 async function refreshRepos() {
@@ -313,7 +314,11 @@ $("#new-project").onclick = async () => {
   await refreshProjects();
   refreshSessions();
 };
-$("#project-picker").onchange = () => { wsPath = "."; refreshSessions(); refreshWorkspace(); refreshAgents(); };
+$("#project-picker").onchange = () => {
+  wsPath = ".";
+  $("#new-session").disabled = !$("#project-picker").value;
+  refreshSessions(); refreshWorkspace(); refreshAgents();
+};
 
 $("#new-session").onclick = async () => {
   if (!$("#project-picker").value) { alert("先选择 Project（会话必须属于某个 Project）"); return; }
@@ -483,9 +488,9 @@ async function refreshWorkspace() {
 }
 
 loadSettings?.();
-refreshProjects();
 refreshWorkspace();
-refreshSessions().then(async () => {
+refreshProjects().then(async () => {
+  await refreshSessions();
   const first = document.querySelector("#session-list li");
   if (first) selectSession(first.dataset.id);
   else $("#new-session").click();

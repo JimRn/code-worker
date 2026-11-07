@@ -22,8 +22,9 @@ if (existsSync(join(root, ".env"))) {
 // (--use-env-proxy flag); setting them at runtime is too late. So when a
 // proxy is configured and we are not already the re-exec'd child, restart
 // ourselves with the flag. Explicit shell env wins over ~/.dsh/env.
-// Only trust an ABSOLUTE HOME (an empty HOME must not fall back to ./cwd).
-const dshEnv = process.env.DSH_ENV ?? (process.env.HOME ? join(process.env.HOME, ".dsh", "env") : null);
+// Only trust an ABSOLUTE HOME (an empty/relative HOME must not fall back to ./cwd).
+import { isAbsolute } from "node:path";
+const dshEnv = process.env.DSH_ENV ?? (process.env.HOME && isAbsolute(process.env.HOME) ? join(process.env.HOME, ".dsh", "env") : null);
 if (existsSync(dshEnv)) {
   for (const line of readFileSync(dshEnv, "utf8").split("\n")) {
     const m = line.match(/^\s*(?:export\s+)?([\w.]+)\s*=\s*(.*)\s*$/);
