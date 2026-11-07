@@ -88,6 +88,9 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .turn-group.collapsed .turn-body { display:none; }
 .tool-block, .msg.reasoning, .reasoning-done { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
 .tool-block.collapsed .tb-body, .msg.reasoning.collapsed .tb-body, .reasoning-done.collapsed .tb-body { display:none; }
+.tg-head { width:100%; background:transparent; border:0; color:var(--muted); text-align:left; font-size:13px; padding:6px 2px; cursor:pointer; }
+.tool-group.collapsed .tg-body { display:none; }
+.tg-body { display:flex; flex-direction:column; gap:6px; margin:4px 0 8px; }
 .tb-head { width:100%; background:transparent; border:0; color:var(--muted); text-align:left; font-size:13px; padding:8px 12px; cursor:pointer; }
 .tb-cmd { display:flex; gap:8px; align-items:center; padding:8px 12px; background:#0d1117; font-family:ui-monospace,monospace; font-size:12px; }
 .tb-cmd .dot { width:7px; height:7px; border-radius:50%; background:#3fb950; flex:none; }

@@ -70,12 +70,27 @@ function renderEvent(ev) {
   }
   if (ev.type === "tool/call") {
     const host = currentTurn ? currentTurn.el.querySelector(".turn-body") : box;
+    // Summary group: "使用了 N 个 Shell、读取、编辑 ▾" folds the whole turn's tools.
+    let group = host.querySelector(".tool-group");
+    if (!group) {
+      group = document.createElement("div");
+      group.className = "tool-group";
+      group.innerHTML = `<button class="tg-head"><span class="tg-label"></span> <span class="chev">⌃</span></button><div class="tg-body"></div>`;
+      group.querySelector(".tg-head").onclick = () => group.classList.toggle("collapsed");
+      host.appendChild(group);
+      group._kinds = new Map();
+    }
+    const kind = { bash: "Shell", read_file: "读取", write_file: "编辑", list_dir: "读取", todo_write: "任务", skill_load: "技能", report_write: "报告" }[ev.data.name] ?? ev.data.name;
+    group._kinds.set(kind, (group._kinds.get(kind) ?? 0) + 1);
+    const total = [...group._kinds.values()].reduce((a, b) => a + b, 0);
+    group.querySelector(".tg-label").textContent = `使用了 ${total} 个 ${[...group._kinds.keys()].join("、")}`;
     const block = document.createElement("div");
     block.className = "tool-block";
-    block.innerHTML = `<button class="tb-head">⌃ 运行命令 · ${esc(ev.data.name)}</button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
+    const summary = ev.data.args?.command ?? ev.data.args?.path ?? JSON.stringify(ev.data.args);
+    block.innerHTML = `<button class="tb-head">⌃ ${esc(kind)} <code>${esc(String(summary).slice(0, 80))}</code></button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
     block.querySelector(".tb-head").onclick = () => block.classList.toggle("collapsed");
     block.querySelector(".tb-copy").onclick = (e) => copyText(JSON.stringify(ev.data.args), e.target);
-    host.appendChild(block);
+    group.querySelector(".tg-body").appendChild(block);
     currentTurn?.tools.set(ev.data.callId, block);
     return;
   }
