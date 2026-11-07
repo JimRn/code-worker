@@ -41,8 +41,9 @@ function closeTurn(ts) {
   const head = document.createElement("button");
   head.className = "turn-head";
   head.innerHTML = `<span class="turn-label">已完成，用时 ${secs} 秒</span> <span class="chev">⌃</span>`;
-  head.onclick = () => currentTurn?.el.classList.toggle("collapsed");
-  currentTurn.el.querySelector(".turn-body").appendChild(head);
+  const turnEl = currentTurn.el;
+  head.onclick = () => turnEl.classList.toggle("collapsed");
+  turnEl.appendChild(head); // group root, outside turn-body: collapsing never hides the toggle
   currentTurn.el.classList.add("done");
   currentTurn = null;
 }

@@ -22,7 +22,8 @@ if (existsSync(join(root, ".env"))) {
 // (--use-env-proxy flag); setting them at runtime is too late. So when a
 // proxy is configured and we are not already the re-exec'd child, restart
 // ourselves with the flag. Explicit shell env wins over ~/.dsh/env.
-const dshEnv = process.env.DSH_ENV ?? join(process.env.HOME ?? "", ".dsh", "env");
+// Only trust an ABSOLUTE HOME (an empty HOME must not fall back to ./cwd).
+const dshEnv = process.env.DSH_ENV ?? (process.env.HOME ? join(process.env.HOME, ".dsh", "env") : null);
 if (existsSync(dshEnv)) {
   for (const line of readFileSync(dshEnv, "utf8").split("\n")) {
     const m = line.match(/^\s*(?:export\s+)?([\w.]+)\s*=\s*(.*)\s*$/);
@@ -37,7 +38,9 @@ if ((process.env.HTTPS_PROXY || process.env.HTTP_PROXY) && !process.env.CW_PROXY
     stdio: "inherit",
     env: { ...process.env, CW_PROXY_REEXEC: "1", NODE_USE_ENV_PROXY: "1" },
   });
+  child.on("error", (err) => { console.error(`[proxy re-exec] failed: ${err.message}`); process.exit(1); });
   child.on("exit", (code) => process.exit(code ?? 1));
+  setTimeout(() => { console.error("[proxy re-exec] child did not start in 5s"); process.exit(1); }, 5000);
   await new Promise(() => {}); // parent waits for child
 }
 
