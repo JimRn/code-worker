@@ -36,11 +36,14 @@ let currentTurn = null; // {el, startTs, tools: Map<callId, blockEl>}
 function closeTurn(ts) {
   if (!currentTurn) return;
   const secs = Math.max(1, Math.round((ts - currentTurn.startTs) / 1000));
-  currentTurn.el.querySelector(".turn-label").textContent = `已完成，用时 ${secs} 秒`;
+  // Status header created at close time, at the END of the turn (below user
+  // message + tools + reply), never above the user's own message.
+  const head = document.createElement("button");
+  head.className = "turn-head";
+  head.innerHTML = `<span class="turn-label">已完成，用时 ${secs} 秒</span> <span class="chev">⌃</span>`;
+  head.onclick = () => currentTurn?.el.classList.toggle("collapsed");
+  currentTurn.el.querySelector(".turn-body").appendChild(head);
   currentTurn.el.classList.add("done");
-  // Status goes at the END of the turn (below user message + tools + reply),
-  // never above the user's own message.
-  currentTurn.el.querySelector(".turn-body").appendChild(currentTurn.el.querySelector(".turn-head"));
   currentTurn = null;
 }
 
@@ -50,8 +53,7 @@ function renderEvent(ev) {
   if (ev.type === "turn/start") {
     const turn = document.createElement("div");
     turn.className = "turn-group";
-    turn.innerHTML = `<button class="turn-head"><span class="turn-label">运行中…</span> <span class="chev">⌃</span></button><div class="turn-body"></div>`;
-    turn.querySelector(".turn-head").onclick = () => turn.classList.toggle("collapsed");
+    turn.innerHTML = `<div class="turn-body"></div>`;
     box.appendChild(turn);
     currentTurn = { el: turn, startTs: ev.ts, tools: new Map() };
     return;
