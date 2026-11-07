@@ -10,25 +10,26 @@ const TOKEN = new URLSearchParams(location.search).get("token") ?? localStorage.
 if (TOKEN) localStorage.setItem("cw-token", TOKEN);
 const api = (path) => `/api${path}${TOKEN ? `${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(TOKEN)}` : ""}`;
 
-// Copy delegation (event delegation, survives re-renders). Finds the code in
-// the SAME codeblock (page-wide monotonic data-block id), with fallback.
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest(".copy");
-  if (!btn) return;
-  const code = btn.closest(".codeblock")?.querySelector("code")?.textContent ?? "";
-  const done = () => { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制"), 1200); };
-  try {
-    await navigator.clipboard.writeText(code);
-    done();
-  } catch {
+// Unified copy helper (clipboard API + execCommand fallback).
+async function copyText(text, btn) {
+  const done = () => { if (btn) { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制"), 1200); } };
+  try { await navigator.clipboard.writeText(text); done(); }
+  catch {
     const ta = document.createElement("textarea");
-    ta.value = code;
+    ta.value = text;
     document.body.appendChild(ta);
     ta.select();
     document.execCommand("copy");
     ta.remove();
     done();
   }
+}
+// Copy delegation (event delegation, survives re-renders). Finds the code in
+// the SAME codeblock (page-wide monotonic data-block id), with fallback.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".copy");
+  if (!btn) return;
+  copyText(btn.closest(".codeblock")?.querySelector("code")?.textContent ?? "", btn);
 });
 
 let currentTurn = null; // {el, startTs, tools: Map<callId, blockEl>}
@@ -59,7 +60,7 @@ function renderEvent(ev) {
     block.className = "tool-block";
     block.innerHTML = `<button class="tb-head">⌃ 运行命令 · ${esc(ev.data.name)}</button><div class="tb-body"><div class="tb-cmd"><span class="dot"></span> code-worker <code>${esc(JSON.stringify(ev.data.args))}</code><button class="copy tb-copy">复制</button></div><pre class="tb-out"></pre></div>`;
     block.querySelector(".tb-head").onclick = () => block.classList.toggle("collapsed");
-    block.querySelector(".tb-copy").onclick = (e) => { navigator.clipboard?.writeText(JSON.stringify(ev.data.args)); e.target.textContent = "已复制"; };
+    block.querySelector(".tb-copy").onclick = (e) => copyText(JSON.stringify(ev.data.args), e.target);
     host.appendChild(block);
     currentTurn?.tools.set(ev.data.callId, block);
     return;
@@ -79,10 +80,10 @@ function renderEvent(ev) {
     return;
   }
   if (ev.type === "assistant/reasoning") {
-    let bubble = document.getElementById("reasoning-stream");
+    // Per-turn reasoning bubble (no global id singleton: no cross-turn steal).
+    let bubble = currentTurn?.el.querySelector(".msg.reasoning");
     if (!bubble) {
       bubble = document.createElement("div");
-      bubble.id = "reasoning-stream";
       bubble.className = "msg reasoning";
       bubble.innerHTML = `<button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre></pre></div>`;
       bubble.querySelector(".tb-head").onclick = () => bubble.classList.toggle("collapsed");
@@ -110,12 +111,12 @@ function renderEvent(ev) {
   }
   // Live stream chunk: re-render markdown incrementally (removed when the durable message lands).
   if (ev.type === "assistant/chunk") {
-    let bubble = document.getElementById("streaming");
+    // Inside the current turn group (visual grouping closes on fold).
+    let bubble = currentTurn?.el.querySelector(".streaming");
     if (!bubble) {
       bubble = document.createElement("div");
-      bubble.id = "streaming";
       bubble.className = "msg assistant streaming";
-      box.appendChild(bubble);
+      (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(bubble);
       bubble._raw = "";
     }
     bubble._raw += ev.data.delta;
@@ -123,13 +124,12 @@ function renderEvent(ev) {
     box.scrollTop = box.scrollHeight;
     return;
   }
-  document.getElementById("reasoning-stream")?.remove();
-  document.getElementById("streaming")?.remove();
+  currentTurn?.el.querySelectorAll(".msg.reasoning, .streaming").forEach((el) => el.remove());
   const div = document.createElement("div");
   if (ev.type === "user/message") {
     div.className = "msg user";
     div.innerHTML = `${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
-    div.querySelector(".copy").onclick = () => navigator.clipboard?.writeText(ev.data.text);
+    div.querySelector(".copy").onclick = (e) => copyText(ev.data.text, e.target);
   }
   else if (ev.type === "assistant/message") {
     // Tool-only steps have no visible text: tools already render as blocks.
@@ -188,7 +188,7 @@ async function refreshSessions() {
   // If the current session is not in this project's list, switch to the first one.
   if (currentId && !sessions.some((s) => s.id === currentId)) {
     if (sessions[0]) selectSession(sessions[0].id);
-    else { currentId = null; $("#messages").innerHTML = ""; }
+    else { currentId = null; stream?.close(); stream = null; $("#messages").innerHTML = ""; }
   }
 }
 
