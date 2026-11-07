@@ -26,8 +26,18 @@ export function mdToHtml(text) {
     // broken out of; url is already-escaped text (no second escape).
     .replace(/\[([^\]]+)\]\((https?:[^)\s"']+)\)/g, (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`);
   const lines = html.split("\n");
-  let out = "", inList = false;
+  let out = "", inList = false, inTable = false, firstRow = false;
+  const tableRow = (line, tag) =>
+    `<tr>${line.split("|").slice(1, -1).map((c) => `<${tag}>${c.trim()}</${tag}>`).join("")}</tr>`;
   for (const line of lines) {
+    if (/^\|[\s:|-]+\|$/.test(line.trim())) continue; // separator row
+    if (/^\|.*\|$/.test(line.trim())) {
+      if (!inTable) { out += "<table>"; inTable = true; firstRow = true; }
+      out += tableRow(line, firstRow ? "th" : "td");
+      firstRow = false;
+      continue;
+    }
+    if (inTable) { out += "</table>"; inTable = false; }
     const m = line.match(/^\s*[-*] (.*)$/);
     if (m) { if (!inList) { out += "<ul>"; inList = true; } out += `<li>${m[1]}</li>`; continue; }
     if (inList) { out += "</ul>"; inList = false; }
@@ -35,6 +45,7 @@ export function mdToHtml(text) {
     out += line.trim() ? `<p>${line}</p>` : "";
   }
   if (inList) out += "</ul>";
+  if (inTable) out += "</table>";
   return out.replace(/\u0000(\d+)\u0000/g, (_, i) => {
     const { lang, code } = blocks[i];
     const id = ++blockSeq;

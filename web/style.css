@@ -75,6 +75,9 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .msg.assistant p { margin:4px 0; }
 .msg.assistant code { background:#21262d; padding:1px 5px; border-radius:4px; font-size:12px; }
 .msg.assistant ul { margin:4px 0; padding-left:20px; }
+.msg.assistant table { border-collapse:collapse; margin:8px 0; font-size:12px; display:block; overflow-x:auto; }
+.msg.assistant th, .msg.assistant td { border:1px solid var(--line); padding:5px 9px; text-align:left; white-space:nowrap; }
+.msg.assistant th { background:#21262d; }
 .msg.system { align-self:center; color:var(--muted); font-size:12px; }
 .msg.streaming { opacity:.85; border-style:dashed; }
 .msg-meta { display:flex; justify-content:flex-end; gap:8px; align-items:center; margin-top:4px; font-size:11px; color:var(--muted); }
