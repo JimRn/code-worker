@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
-import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes, registerTerminalRoutes } from "./routes.js";
+import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes, registerTerminalRoutes, registerProjectEnvRoutes } from "./routes.js";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -64,6 +64,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   if (ctx.get("fs") && ctx.get("shell")) registerWorkspaceRoutes(app);
   if (ctx.get("sessions") && ctx.get("agentLoop")) registerSessionRoutes(app);
   if (ctx.get("terminals")) registerTerminalRoutes(app);
+  registerProjectEnvRoutes(app); // self-gates on ctx projectEnv
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>

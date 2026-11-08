@@ -201,3 +201,10 @@ button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 
 .pv-body table { border-collapse:collapse; font-size:12px; }
 .pv-body td, .pv-body th { border:1px solid var(--line); padding:4px 8px; }
 .pv-body .pv-slide { border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:12px; }
+#project-env { border-top:1px solid var(--line); padding-top:8px; margin-top:8px; }
+#env-list { list-style:none; margin:6px 0; padding:0; }
+#env-list li { display:flex; gap:6px; align-items:center; font-size:12px; padding:3px 4px; }
+#env-list code { flex:1; }
+#env-list .env-del { background:transparent; border:0; color:var(--muted); cursor:pointer; }
+.env-form { display:flex; flex-wrap:wrap; gap:6px; }
+.env-form input { flex:1; min-width:0; }

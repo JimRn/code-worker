@@ -12,6 +12,7 @@
     "shell-local",
     "tool-bash",
     "projects",
+    "project-env",
     "todo",
     "skills",
     "agents",

@@ -24,16 +24,20 @@ export class LocalShell extends ShellService {
   }
   async run(request) {
     const spec = this.resolveSpec(request);
-    return this.subprocess.run({ file: spec.shell, args: ["-c", spec.command], cwd: this.workspace, timeoutMs: spec.timeoutMs });
+    return this.subprocess.run({ file: spec.shell, args: ["-c", spec.command], cwd: this.workspace, timeoutMs: spec.timeoutMs, env: request.env });
   }
 }
 
 export function registerBashTool(ctx) {
   const shell = ctx.require("shell");
   const tools = ctx.require("tools");
+  const projectEnv = () => ctx.get("projectEnv");
   ctx.effect(() => tools.register({
-    name: "bash", description: "Run a shell command in the workspace (guarded: needs approval).",
+    name: "bash", description: "Run a shell command in the workspace (guarded: needs approval). Project env vars (incl. secrets) are in the child env.",
     schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
-    execute: async ({ command }) => shell.run({ command }),
+    execute: async ({ command }, req) => {
+      const extra = req.projectId && projectEnv() ? projectEnv().all(req.projectId) : {};
+      return shell.run({ command, env: extra });
+    },
   }));
 }

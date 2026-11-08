@@ -7,10 +7,10 @@ import { randomUUID } from "node:crypto";
 /** Service Definition. */
 export class TerminalService {
   constructor() { this.sessions = new Map(); } // id -> {backend, owner, output, listeners}
-  async open(owner, { cwd, shell = "bash" } = {}) {
+  async open(owner, { cwd, shell = "bash", env } = {}) {
     const id = `term-${randomUUID().slice(0, 8)}`;
     const backend = new LocalPtyBackend(shell);
-    const session = await backend.spawn({ cwd });
+    const session = await backend.spawn({ cwd, env });
     this.sessions.set(id, { backend, session, owner, output: session.motd, listeners: new Set() });
     return id;
   }
@@ -70,9 +70,9 @@ export class TerminalService {
 /** Provider: local bash over node-pty. */
 export class LocalPtyBackend {
   constructor(shell = "bash") { this.shell = shell; }
-  async spawn({ cwd }) {
+  async spawn({ cwd, env }) {
     const { default: pty } = await import("node-pty");
-    const proc = pty.spawn(this.shell, [], { name: "xterm-256color", cols: 120, rows: 40, cwd: cwd ?? process.cwd() });
+    const proc = pty.spawn(this.shell, [], { name: "xterm-256color", cols: 120, rows: 40, cwd: cwd ?? process.cwd(), env: env ? { ...process.env, ...env } : undefined });
     const listeners = new Set();
     const session = {
       motd: "",
@@ -94,6 +94,7 @@ export function registerTerminalTools(ctx) {
   const terminals = ctx.require("terminals");
   const tools = ctx.require("tools");
   const fs = ctx.get("fs"); // confinement seam; absent only in fs-less profiles
+  const projectEnv = () => ctx.get("projectEnv");
   const ownerOf = (req) => req.sessionId ?? "default";
   const resolveCwd = (cwd) => {
     if (!fs) return cwd ?? process.cwd();
@@ -102,7 +103,10 @@ export function registerTerminalTools(ctx) {
   };
   const defs = [
     { name: "terminal_open", description: "Open a persistent shell session. Returns a session id.", schema: { type: "object", properties: { cwd: { type: "string" } } },
-      execute: async ({ cwd } = {}, req) => `terminal: ${await terminals.open(ownerOf(req), { cwd: resolveCwd(cwd) })}` },
+      execute: async ({ cwd } = {}, req) => {
+        const extra = req.projectId && projectEnv() ? projectEnv().all(req.projectId) : {};
+        return `terminal: ${await terminals.open(ownerOf(req), { cwd: resolveCwd(cwd), env: extra })}`;
+      } },
     { name: "terminal_send", description: "Send a command to a terminal session and return its output.", schema: { type: "object", properties: { id: { type: "string" }, command: { type: "string" } }, required: ["id", "command"] },
       execute: async ({ id, command }, req) => terminals.send(id, ownerOf(req), command) },
     { name: "terminal_read", description: "Read the scrollback output of a terminal session.", schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },

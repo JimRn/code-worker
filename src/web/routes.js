@@ -368,6 +368,30 @@ export function registerSessionRoutes(app) {
 
 /** Terminal routes (Web UI PTY). cwd is confined through the fs seam —
  * the HTTP surface gets the same workspace isolation as the tools. */
+/** Project env vars: metadata only (secret values never served). */
+export function registerProjectEnvRoutes(app) {
+  const { ctx, sendJson, readBody } = app;
+  const env = () => ctx.get("projectEnv");
+  if (!env()) return; // capability gate: no project-env plugin, no routes
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/env$/, async (req, res, m) => {
+    if (!ctx.get("projects")?.get(m[1])) return sendJson(res, 404, { error: "project not found" });
+    sendJson(res, 200, { vars: env().list(m[1]) });
+  });
+  app.route("PUT", /^\/api\/projects\/([\w-]+)\/env$/, async (req, res, m) => {
+    const body = await readBody(req);
+    try {
+      env().set(m[1], body.key, body.value, { secret: Boolean(body.secret) });
+      sendJson(res, 200, { ok: true });
+    } catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+  app.route("DELETE", /^\/api\/projects\/([\w-]+)\/env$/, async (req, res, m, url) => {
+    const key = url.searchParams.get("key");
+    if (!key) return sendJson(res, 400, { error: "key is required" });
+    try { env().delete(m[1], key); sendJson(res, 200, { ok: true }); }
+    catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+}
+
 export function registerTerminalRoutes(app) {
   const { ctx, sendJson, readBody, store } = app;
   const terminals = () => ctx.require("terminals");
@@ -387,7 +411,9 @@ export function registerTerminalRoutes(app) {
     const body = await readBody(req);
     try {
       const cwd = defaultCwd(body);
-      const id = await terminals().open(body.sessionId ?? "web", { cwd });
+      const pid = body.cwdSessionId ? store.open(body.cwdSessionId).binding?.projectId : (body.projectId || null);
+      const env = pid && ctx.get("projectEnv") ? ctx.get("projectEnv").all(pid) : {};
+      const id = await terminals().open(body.sessionId ?? "web", { cwd, env });
       sendJson(res, 201, { id, cwd });
     } catch (err) { sendJson(res, 400, { error: err.message }); }
   });

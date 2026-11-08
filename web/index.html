@@ -46,6 +46,17 @@
     <div id="workspace">
       <div class="ws-head">工作区 <span id="ws-root"></span> <a href="#" id="open-files">打开文件面板 →</a></div>
     </div>
+    <div id="project-env">
+      <div class="ws-head">环境变量 <span id="env-count"></span></div>
+      <ul id="env-list"></ul>
+      <div class="env-form">
+        <input id="env-key" placeholder="KEY (如 API_TOKEN)">
+        <input id="env-val" type="password" placeholder="值">
+        <label class="approve"><input type="checkbox" id="env-secret"> 密码类型</label>
+        <button id="env-add" type="button">保存</button>
+      </div>
+      <div id="env-status" class="status"></div>
+    </div>
     <div id="usage-info" class="status"></div>
     <div id="settings-panel" hidden>
       <label>Base URL <input id="set-baseurl" placeholder="https://api.openai.com/v1"></label>

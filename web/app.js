@@ -781,8 +781,34 @@ $("#pv-download").onclick = () => { if (pvUrl) location.href = pvUrl; };
 $("#pv-close").onclick = () => { $("#preview-modal").hidden = true; };
 $("#preview-modal").addEventListener("click", (e) => { if (e.target.id === "preview-modal") $("#preview-modal").hidden = true; });
 
+// --- Project env vars (plain visible, password write-only) ---
+async function refreshEnv() {
+  const pid = $("#project-picker")?.value;
+  const box = $("#env-list");
+  if (!pid) { box.innerHTML = ""; $("#env-count").textContent = ""; return; }
+  const r = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/env`))).json();
+  const vars = r.vars ?? [];
+  $("#env-count").textContent = vars.length ? `${vars.length} 个` : "";
+  box.innerHTML = vars.map((v) => `<li><code>${esc(v.key)}</code>${v.secret ? "🔒" : "明文"}<button class="env-del" data-key="${escAttr(v.key)}" title="删除">✕</button></li>`).join("");
+  box.querySelectorAll(".env-del").forEach((b) => (b.onclick = async () => {
+    await fetch(api(`/projects/${encodeURIComponent(pid)}/env?key=${encodeURIComponent(b.dataset.key)}`), { method: "DELETE" });
+    refreshEnv();
+  }));
+}
+$("#env-add").onclick = async () => {
+  const pid = $("#project-picker")?.value;
+  const key = $("#env-key").value.trim(), value = $("#env-val").value, secret = $("#env-secret").checked;
+  if (!pid || !key) return;
+  const r = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/env`), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ key, value, secret }) })).json();
+  $("#env-status").textContent = r.error ?? "已保存";
+  if (!r.error) { $("#env-val").value = ""; $("#env-secret").checked = false; refreshEnv(); }
+};
+// refresh env when project changes
+$("#project-picker").addEventListener("change", () => refreshEnv());
+
 loadSettings?.();
 refreshWorkspace();
+refreshEnv();
 refreshProjects().then(async () => {
   await refreshSessions();
   const first = document.querySelector("#session-list li");
