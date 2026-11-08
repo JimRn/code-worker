@@ -21,6 +21,15 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .status { color:var(--muted); font-size:12px; }
 #main { flex:1; display:flex; flex-direction:column; min-width:0; }
 #main-head { display:flex; padding:8px 12px 0; }
+#modal { position:fixed; inset:0; background:#000a; display:flex; align-items:center; justify-content:center; z-index:50; }
+#modal[hidden] { display:none; }
+.modal-card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; width:min(420px, 90vw); display:flex; flex-direction:column; gap:12px; }
+#modal-title { font-size:15px; font-weight:600; }
+#modal-body { font-size:13px; color:var(--muted); white-space:pre-wrap; }
+#modal-input { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; }
+#modal-cancel { background:transparent; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 16px; cursor:pointer; }
+#modal-ok { background:#2f6feb; border:0; color:#fff; border-radius:8px; padding:7px 16px; cursor:pointer; }
 #toggle-files { background:transparent; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:4px 12px; cursor:pointer; font-size:13px; margin-left:auto; }
 #view-tabs { display:flex; gap:4px; }
 #view-tabs button { background:transparent; border:0; color:var(--muted); padding:6px 10px; cursor:pointer; font-size:13px; border-bottom:2px solid transparent; }

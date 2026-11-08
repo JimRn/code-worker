@@ -5,6 +5,29 @@ import { mdToHtml, esc, escAttr } from "./md.js";
 const $ = (s) => document.querySelector(s);
 let currentId = null;
 let stream = null;
+
+// Custom modal (replaces native alert/confirm/prompt).
+async function modal({ title, body, input, okText = "确定" }) {
+  $("#modal-title").textContent = title;
+  $("#modal-body").textContent = body ?? "";
+  const inp = $("#modal-input");
+  inp.hidden = !input;
+  inp.value = input?.value ?? "";
+  inp.placeholder = input?.placeholder ?? "";
+  $("#modal-ok").textContent = okText;
+  $("#modal").hidden = false;
+  if (input) inp.focus();
+  return new Promise((resolve) => {
+    const done = (v) => {
+      $("#modal").hidden = true;
+      $("#modal-ok").onclick = $("#modal-cancel").onclick = null;
+      resolve(v);
+    };
+    $("#modal-ok").onclick = () => done(input ? inp.value.trim() : "ok");
+    $("#modal-cancel").onclick = () => done(null);
+  });
+}
+const alertBox = (msg) => modal({ title: "提示", body: msg, okText: "知道了" });
 // LAN token: ?token= in URL is persisted to localStorage and appended to API calls.
 const TOKEN = new URLSearchParams(location.search).get("token") ?? localStorage.getItem("cw-token") ?? "";
 if (TOKEN) localStorage.setItem("cw-token", TOKEN);
@@ -246,7 +269,7 @@ async function refreshSessions() {
   document.querySelectorAll(".sl-del").forEach((b) => (b.onclick = async (e) => {
     e.stopPropagation();
     const id = b.closest("li").dataset.id;
-    if (!confirm(`删除会话 ${id}？将移入回收站（可恢复），不是彻底删除。`)) return;
+    if (!(await modal({ title: "删除会话", body: `删除会话 ${id}？将移入回收站（可恢复），不是彻底删除。`, okText: "删除" }))) return;
     await fetch(api(`/sessions/${id}`), { method: "DELETE" });
     if (currentId === id) { currentId = null; stream?.close(); $("#messages").innerHTML = ""; }
     refreshSessions();
@@ -294,7 +317,7 @@ $("#plus-menu").querySelectorAll("button").forEach((b) => (b.onclick = async () 
   else if (act === "model") $("#model-picker").focus();
   else if (act === "goal" || act === "plan" || act === "feedback") {
     const label = { goal: "目标", plan: "计划", feedback: "反馈" }[act];
-    const text = prompt(`输入${label}内容（将作为消息发送）：`);
+    const text = await modal({ title: label, body: `输入${label}内容（将作为消息发送）：`, input: {} });
     if (text) { $("#input").value = `/${act} ${text}`; $("#composer").requestSubmit(); }
   }
 }));
@@ -322,8 +345,8 @@ async function refreshRepos() {
 }
 $("#add-repo").onclick = async () => {
   const pid = $("#project-picker").value;
-  if (!pid) return alert("先选 Project");
-  const choice = prompt("仓库名（新建空目录），或填已有目录的绝对路径（导入）：", "new-repo");
+  if (!pid) return alertBox("先选 Project");
+  const choice = await modal({ title: "添加仓库", body: "仓库名（新建空目录），或填已有目录的绝对路径（导入）：", input: { placeholder: "new-repo" } });
   if (!choice) return;
   const body = choice.startsWith("/") ? { importFrom: choice } : { name: choice };
   await fetch(api(`/projects/${encodeURIComponent(pid)}/repos`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -341,7 +364,7 @@ async function refreshTrash() {
     refreshTrash(); refreshSessions();
   }));
   document.querySelectorAll("[data-purge]").forEach((b) => (b.onclick = async () => {
-    if (!confirm(`彻底删除 ${b.dataset.purge}？不可恢复。`)) return;
+    if (!(await modal({ title: "彻底删除", body: `彻底删除 ${b.dataset.purge}？不可恢复。`, okText: "彻底删除" }))) return;
     await fetch(api(`/projects/${encodeURIComponent(pid)}/trash/${encodeURIComponent(b.dataset.purge)}/purge`), { method: "DELETE" });
     refreshTrash();
   }));
@@ -389,27 +412,27 @@ $("#ag-folder").onchange = async () => {
 $("#cancel-agent").onclick = () => { $("#agent-dialog").hidden = true; };
 $("#save-agent").onclick = async () => {
   const pid = $("#project-picker").value;
-  if (!pid) return alert("先选 Project");
+  if (!pid) return alertBox("先选 Project");
   const tools = [...document.querySelectorAll(".tools-checks input:checked")].map((i) => i.value);
   const r = await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`), {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: $("#ag-name").value, description: $("#ag-desc").value, body: $("#ag-body").value, tools }),
   });
   const d = await r.json();
-  if (!r.ok) return alert(d.error);
+  if (!r.ok) return alertBox(d.error);
   $("#agent-dialog").hidden = true;
   refreshAgents();
 };
 $("#del-agent").onclick = async () => {
   const pid = $("#project-picker").value;
   const name = $("#agent-picker").value;
-  if (!pid || !name) return alert("先选 Project 和 Agent");
-  if (!confirm(`删除 Agent 定义 ${name}？（历史会话不受影响）`)) return;
+  if (!pid || !name) return alertBox("先选 Project 和 Agent");
+  if (!(await modal({ title: "删除 Agent", body: `删除 Agent 定义 ${name}？（历史会话不受影响）`, okText: "删除" }))) return;
   await fetch(api(`/projects/${encodeURIComponent(pid)}/agents/${encodeURIComponent(name)}`), { method: "DELETE" });
   refreshAgents();
 };
 $("#new-project").onclick = async () => {
-  const name = prompt("Project 名称：");
+  const name = await modal({ title: "新建 Project", body: "Project 名称：", input: {} });
   if (!name) return;
   await fetch(api("/projects"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
   await refreshProjects();
@@ -438,7 +461,7 @@ $("#agent-picker").onchange = () => {
 };
 
 $("#new-session").onclick = async () => {
-  if (!$("#project-picker").value) { alert("先选择 Project（会话必须属于某个 Project）"); return; }
+  if (!$("#project-picker").value) { alertBox("先选择 Project（会话必须属于某个 Project）"); return; }
   const projectId = $("#project-picker").value || undefined;
   const agent = $("#agent-picker").value || "default"; // default agent is a valid binding
   $("#agent-picker").value = agent;
