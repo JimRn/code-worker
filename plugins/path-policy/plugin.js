@@ -29,6 +29,26 @@ export const plugin = {
     });
     ctx.provide("pathPolicy", { blocked, isBlocked });
     // Tool-layer guard: scan string args for blocked path segments.
+    // Execution indirection: running an existing script file whose content
+    // matches a blocked command pattern is blocked too (`bash start.sh`).
+    const scriptFileMatch = async (cmd) => {
+      const fs = ctx.get("fs");
+      if (!fs) return null;
+      const tokens = String(cmd).split(/\s+/);
+      for (const tok of tokens) {
+        const clean = tok.replace(/^[\"']|[\"']$/g, "");
+        if (!/\.(sh|py|pl|rb|js|mjs)$/i.test(clean)) continue;
+        try {
+          const abs = fs.resolve(clean);
+          const { existsSync, readFileSync } = await import("node:fs");
+          if (!existsSync(abs)) continue;
+          const content = readFileSync(abs, "utf8");
+          const pat = matchBlockedCommand(content);
+          if (pat) return pat;
+        } catch { /* non-workspace path or unreadable: fs seam already guards */ }
+      }
+      return null;
+    };
     ctx.on("tools/pre-execute", async (req, next) => {
       // Argument-level governance: path segments first, then command patterns.
       for (const v of Object.values(req.args ?? {})) {
@@ -41,6 +61,11 @@ export const plugin = {
         if (typeof v !== "string") continue;
         const pat = matchBlockedCommand(v);
         if (pat) { req.denied = `argument matches blocked pattern: ${pat}`; req.policy = "path-policy"; return next(req); }
+      }
+      const cmd = req.args?.command;
+      if (typeof cmd === "string") {
+        const pat = await scriptFileMatch(cmd);
+        if (pat) { req.denied = `script file content matches blocked pattern: ${pat}`; req.policy = "path-policy"; return next(req); }
       }
       return next(req);
     }, "waterfall", { priority: 30 });
