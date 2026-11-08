@@ -316,7 +316,8 @@ async function refreshAgents() {
   $("#agent-picker").innerHTML = `<option value="">（默认 Agent）</option>`;
   if (!pid) return;
   const { agents } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`))).json();
-  $("#agent-picker").innerHTML += agents.map((a) => `<option value="${escAttr(a.name)}">${esc(a.name)} · ${esc(a.description)}</option>`).join("");
+  $("#agent-picker").innerHTML += agents.map((a) => `<option value="${escAttr(a.name)}">${esc(a.name)} · ${esc(a.description)}</option>`).join("") +
+    `<option value="__new__">+ 新建 Agent…</option>`;
   refreshUsage();
 }
 async function refreshUsage() {
@@ -390,7 +391,12 @@ $("#project-picker").onchange = async () => {
   refreshSessions(); refreshWorkspace(); refreshAgents();
 };
 $("#agent-picker").onchange = () => {
-  $("#new-session").disabled = !$("#project-picker").value || $("#project-picker").value === "__new__";
+  if ($("#agent-picker").value === "__new__") {
+    $("#agent-picker").value = "default"; // restore; cancel keeps previous selection
+    $("#new-agent").click();
+    return;
+  }
+  $("#new-session").disabled = !$("#project-picker").value;
   refreshSessions();
 };
 

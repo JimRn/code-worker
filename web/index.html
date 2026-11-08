@@ -12,7 +12,7 @@
     <div class="brand">Code Worker</div>
     <select id="project-picker" title="选择 Project（会话将隔离到该 Project 的仓库）"></select>
     <select id="agent-picker" title="选择 Agent 专家（可选）"><option value="">（默认 Agent）</option></select>
-    <span class="row"><button id="new-agent" type="button" title="创建 Agent">+ Agent</button><button id="del-agent" type="button" title="删除选中 Agent 定义">删除</button></span>
+    <span class="row"><button id="new-agent" type="button" hidden>+ Agent</button><button id="del-agent" type="button" title="删除选中 Agent 定义">删除</button></span>
     <div id="agent-dialog" hidden>
       <label>名称（下拉选项目 agents/ 下已有文件夹，或直接输入新建）
         <span class="row"><select id="ag-folder"></select><input id="ag-name" placeholder="如 code-reviewer"></span></label>
