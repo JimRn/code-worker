@@ -493,7 +493,9 @@ $("#composer").onsubmit = async (e) => {
 };
 
 $("#input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); }
+  // IME composing (Chinese/Japanese/Korean candidate selection) must not
+  // send: Enter there confirms a candidate, the event has isComposing set.
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#composer").requestSubmit(); }
 });
 
 // --- Models settings (mirrors DSH ui-settings-models): key is write-only,
