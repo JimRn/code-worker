@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
-import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes } from "./routes.js";
+import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes, registerTerminalRoutes } from "./routes.js";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -60,6 +60,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   registerWorkspaceRoutes(app);
   registerApprovalRoutes(app);
   registerSessionRoutes(app);
+  registerTerminalRoutes(app);
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>
@@ -96,28 +97,40 @@ export function createWebServer({ ctx, store, approval, token }) {
     }
   });
   // WebSocket upgrade: /api/terminals/:id/ws?token= (xterm.js <-> PTY).
+  // One process-wide WSS (lazily created); each socket is a connection on it.
+  let wssPromise = null;
+  const getWss = async () => {
+    if (!wssPromise) {
+      wssPromise = import("ws").then(({ WebSocketServer }) => {
+        const w = new WebSocketServer({ noServer: true });
+        w.on("connection", (ws, req) => {
+          const m = new URL(req.url, "http://localhost").pathname.match(/^\/api\/terminals\/([\w-]+)\/ws$/);
+          if (!m) { ws.close(); return; }
+          const terminals = ctx.require("terminals");
+          const owner = "web";
+          const off = terminals.subscribe(m[1], owner, (d) => { if (ws.readyState === 1) ws.send(d); });
+          ws.on("message", (msg) => {
+            try {
+              const { input, cols, rows } = JSON.parse(msg.toString());
+              if (cols && rows) terminals.resize(m[1], owner, cols, rows);
+              if (input) terminals.writeRaw(m[1], owner, input); // raw keystrokes, no newline
+            } catch { /* ignore */ }
+          });
+          ws.on("close", off);
+        });
+        return w;
+      });
+    }
+    return wssPromise;
+  };
   server.on("upgrade", async (req, socket, head) => {
     try {
       const url = new URL(req.url, "http://localhost");
       const m = url.pathname.match(/^\/api\/terminals\/([\w-]+)\/ws$/);
       if (!m) { socket.destroy(); return; }
       if (!authorized(req, url)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); socket.destroy(); return; }
-      const { WebSocketServer } = await import("ws");
-      const wss = new WebSocketServer({ noServer: true });
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        wss.emit("connection", ws, req);
-        const terminals = ctx.require("terminals");
-        const owner = "web";
-        const off = terminals.subscribe(m[1], owner, (d) => { if (ws.readyState === 1) ws.send(d); });
-        ws.on("message", (msg) => {
-          try {
-            const { input, cols, rows } = JSON.parse(msg.toString());
-            if (cols && rows) terminals.resize(m[1], owner, cols, rows);
-            if (input) terminals.send(m[1], owner, input).catch(() => {});
-          } catch { /* ignore */ }
-        });
-        ws.on("close", () => { off(); wss.close(); });
-      });
+      const wss = await getWss();
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
     } catch { socket.destroy(); }
   });
   return server;

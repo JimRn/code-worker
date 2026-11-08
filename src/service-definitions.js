@@ -19,7 +19,7 @@ export const SERVICE_METHODS = {
   agentLoop: ["provider", "maxSteps", "toolResultMaxBytes", "currentModel", "runTurn", "cancel", "inject"],
   compaction: ["prune", "compact", "maybeCompact", "overBudget"],
   fileCache: ["read", "clear"],
-  terminals: ["open", "send", "read", "close"],
+  terminals: ["open", "send", "read", "close", "writeRaw", "subscribe", "resize"],
 };
 
 /** Is this service worth wrapping? Only real services (with a listed method). */

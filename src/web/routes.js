@@ -39,24 +39,6 @@ export function registerProjectRoutes(app) {
     }
     sendJson(res, 201, { repo: projects().addRepo(m[1], body.name) });
   });
-  // --- terminals (Web UI: open/send/read over HTTP, long-poll style) ---
-  app.route("POST", "/api/terminals", async (req, res) => {
-    const body = await readBody(req);
-    const id = await ctx.require("terminals").open(body.sessionId ?? "web", { cwd: body.cwd });
-    sendJson(res, 201, { id });
-  });
-  app.route("POST", /^\/api\/terminals\/([\w-]+)\/send$/, async (req, res, m) => {
-    const body = await readBody(req);
-    try {
-      const out = await ctx.require("terminals").send(m[1], body.sessionId ?? "web", body.command ?? "");
-      sendJson(res, 200, { output: out });
-    } catch (err) { sendJson(res, 404, { error: err.message }); }
-  });
-  app.route("GET", /^\/api\/terminals\/([\w-]+)$/, async (req, res, m) => {
-    try {
-      sendJson(res, 200, { output: ctx.require("terminals").read(m[1], url.searchParams.get("sessionId") ?? "web") });
-    } catch (err) { sendJson(res, 404, { error: err.message }); }
-  });
   app.route("GET", /^\/api\/projects\/([\w-]+)\/outputs$/, async (req, res, m) => {
     if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
     const { listOutputs } = await import("../outputs.js");
@@ -123,7 +105,7 @@ export function registerSettingsRoutes(app) {
   const { ctx, sendJson, readBody } = app;
   const settings = () => ctx.get("settings");
   const modelConfig = () => ctx.get("modelConfig");
-  app.route("GET", "/api/settings", async (req, res) => sendJson(res, 200, settings().describe()));
+  app.route("GET", "/api/settings", async (req, res) => sendJson(res, 200, { ...settings().describe(), capabilities: { terminal: Boolean(ctx.get("terminals")) } }));
   app.route("PUT", "/api/settings", async (req, res) => {
     const body = await readBody(req);
     const view = settings().update(body);
@@ -344,5 +326,33 @@ export function registerSessionRoutes(app) {
       .catch((e) => console.error("[web] turn failed:", e.message))
       .finally(() => { running.delete(session.id); if (prevApproval) approval.bySession.set(session.id, prevApproval); else approval.bySession.delete(session.id); });
     return;
+  });
+}
+
+/** Terminal routes (Web UI PTY). cwd is confined through the fs seam —
+ * the HTTP surface gets the same workspace isolation as the tools. */
+export function registerTerminalRoutes(app) {
+  const { ctx, sendJson, readBody } = app;
+  const terminals = () => ctx.require("terminals");
+  app.route("POST", "/api/terminals", async (req, res) => {
+    const body = await readBody(req);
+    try {
+      const fs = ctx.get("fs");
+      const cwd = body.cwd ? fs.resolve(body.cwd) : fs.root;
+      const id = await terminals().open(body.sessionId ?? "web", { cwd });
+      sendJson(res, 201, { id });
+    } catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+  app.route("POST", /^\/api\/terminals\/([\w-]+)\/send$/, async (req, res, m) => {
+    const body = await readBody(req);
+    try {
+      const out = await terminals().send(m[1], body.sessionId ?? "web", body.command ?? "");
+      sendJson(res, 200, { output: out });
+    } catch (err) { sendJson(res, 404, { error: err.message }); }
+  });
+  app.route("GET", /^\/api\/terminals\/([\w-]+)$/, async (req, res, m, url) => {
+    try {
+      sendJson(res, 200, { output: terminals().read(m[1], url.searchParams.get("sessionId") ?? "web") });
+    } catch (err) { sendJson(res, 404, { error: err.message }); }
   });
 }

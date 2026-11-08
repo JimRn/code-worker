@@ -37,11 +37,17 @@ export class TerminalService {
     const s = this.require(id, owner);
     return s.output.slice(-8000);
   }
-  /** Live subscription to PTY output (for WebSocket streaming). */
+  /** Live subscription to PTY output (for WebSocket streaming). Returns a
+   * real disposer that removes the listener (no leak on reconnect). */
   subscribe(id, owner, fn) {
     const s = this.require(id, owner);
-    s.session.onData(fn);
-    return () => {};
+    return s.session.onData(fn);
+  }
+  /** Raw keystroke write for interactive frontends (xterm onData): bytes as-is,
+   * no trailing newline, no idle wait. The tool path stays on send(). */
+  writeRaw(id, owner, text) {
+    const s = this.require(id, owner);
+    s.session.write(text);
   }
   /** Resize the PTY (cols/rows). */
   resize(id, owner, cols, rows) {
@@ -72,7 +78,7 @@ export class LocalPtyBackend {
       motd: "",
       write: (t) => proc.write(t),
       resize: (cols, rows) => proc.resize(cols, rows),
-      onData: (fn) => { listeners.add(fn); },
+      onData: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
       close: async () => { try { proc.kill(); } catch { /* already exited */ } },
     };
     proc.onData((d) => { session.motd += d; for (const fn of listeners) fn(d); });

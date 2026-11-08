@@ -547,22 +547,36 @@ let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
 // --- Web terminal: xterm.js + WebSocket to PTY (PuTTY-like) ---
 let termWs = null, termXterm = null, termFit = null;
-async function termConnect() {
-  const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
-  const id = r.id;
-  termXterm = new Terminal({ cursorBlink: true, scrollback: 5000, theme: { background: "#0d1117" } });
-  termXterm.open($("#xterm-holder"));
-  termFit = new FitAddon.FitAddon();
-  termXterm.loadAddon(termFit);
-  termFit.fit();
+let termId = null;
+function termOpenWs() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${proto}//${location.host}/api/terminals/${encodeURIComponent(id)}/ws${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
+  const wsUrl = `${proto}//${location.host}/api/terminals/${encodeURIComponent(termId)}/ws${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
   termWs = new WebSocket(wsUrl);
   termWs.onmessage = (e) => termXterm.write(e.data);
-  termXterm.onData((d) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ input: d })); });
-  termXterm.onResize(({ cols, rows }) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ cols, rows })); });
-  window.addEventListener("resize", () => termFit.fit());
+  // Closed sockets clear the handle so reopening the panel reconnects to the
+  // SAME PTY (no orphan PTY + lost scrollback from a fresh POST).
+  termWs.onclose = () => { termWs = null; };
 }
+async function termConnect() {
+  if (!termId) {
+    const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    termId = r.id;
+    termXterm = new Terminal({ cursorBlink: true, scrollback: 5000, theme: { background: "#0d1117" } });
+    termXterm.open($("#xterm-holder"));
+    termFit = new FitAddon.FitAddon();
+    termXterm.loadAddon(termFit);
+    termFit.fit();
+    termXterm.onData((d) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ input: d })); });
+    termXterm.onResize(({ cols, rows }) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ cols, rows })); });
+    window.addEventListener("resize", () => { if (!$("#terminal-panel").hidden) termFit.fit(); });
+  }
+  termOpenWs();
+}
+// Terminal button only shows when the terminals plugin is loaded.
+(async () => {
+  const s = await (await fetch(api("/settings"))).json().catch(() => ({}));
+  if (!s.capabilities?.terminal) $("#toggle-terminal").style.display = "none";
+})();
 $("#toggle-terminal").onclick = () => {
   $("#terminal-panel").hidden = !$("#terminal-panel").hidden;
   if (!$("#terminal-panel").hidden) {

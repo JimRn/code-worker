@@ -1,6 +1,6 @@
 # Code Worker — 个人 DeepSeek Harness
 
-按 `docs/harness-design-summary.md` / `docs/harness-implementation-blueprint.md` 从 0 搭建的极简版 Cordis Harness：除 `node-pty`（仅 terminals 插件用）外零依赖（Node >=20 内置），对照原项目设计要点逐项落地。上游 DeepSeek 源码仅供参考，见 `../reference/deepseek-harness/`（只读，不要在此改代码）。
+按 `docs/harness-design-summary.md` / `docs/harness-implementation-blueprint.md` 从 0 搭建的极简版 Cordis Harness：除 `node-pty`、`ws`（仅 terminals 插件与 WebSocket PTY 用）外零依赖（Node >=20 内置），对照原项目设计要点逐项落地。上游 DeepSeek 源码仅供参考，见 `../reference/deepseek-harness/`（只读，不要在此改代码）。
 
 ## 架构对照
 
