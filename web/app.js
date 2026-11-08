@@ -304,7 +304,8 @@ async function selectSession(id) {
   await refreshSessions();
   openStream(id);
   const snap = await (await fetch(api(`/sessions/${id}`))).json();
-  renderTodos(snap.todos ?? [], Number.MAX_SAFE_INTEGER);
+  // Historical todos already render inline via SSE replay (todo/write events);
+  // seeding lastTodoSeq here would block every later live update.
   updateUsage();
 }
 
