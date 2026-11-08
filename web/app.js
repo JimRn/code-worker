@@ -336,7 +336,6 @@ async function refreshProjects() {
   refreshAgents();
   $("#new-session").disabled = !$("#project-picker").value || $("#project-picker").value === "__new__";
   refreshSessions();
-  refreshRepos();
 }
 async function refreshTrash() {
   const pid = $("#project-picker").value;
