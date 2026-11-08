@@ -378,7 +378,14 @@ $("#new-project").onclick = async () => {
   refreshSessions();
 };
 $("#project-picker").onchange = async () => {
-  if ($("#project-picker").value === "__new__") { $("#new-project").click(); return; }
+  if ($("#project-picker").value === "__new__") {
+    const sel = $("#project-picker");
+    sel.disabled = false;
+    const prev = sel.options[0]?.value ?? "";
+    sel.value = prev; // restore before prompting; cancel keeps the previous project
+    $("#new-project").click();
+    return;
+  }
   wsPath = ".";
   refreshSessions(); refreshWorkspace(); refreshAgents();
 };
