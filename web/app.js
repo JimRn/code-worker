@@ -87,8 +87,9 @@ function renderEvent(ev) {
     if (thinking) turn.querySelector(".turn-body").appendChild(thinking);
     return;
   }
-  if (ev.type === "turn/end") {
+  if (ev.type === "turn/end" || ev.type === "turn/cancelled" || ev.type === "turn/failed") {
     hideThinking();
+    $("#send").hidden = false; $("#stop").hidden = true;
     sending = false;
     // Any tool block still without output means the turn died mid-tool: mark it.
     currentTurn?.el.querySelectorAll(".tool-block").forEach((b) => {
@@ -478,6 +479,7 @@ $("#composer").onsubmit = async (e) => {
   const text = $("#input").value.trim();
   if (!text || !currentId || sending) return; // double-Enter / rapid sends ignored
   sending = true;
+  $("#send").hidden = true; $("#stop").hidden = false;
   $("#input").value = "";
   // Acknowledge immediately: thinking indicator in the chat (user bubble
   // arrives right after via SSE turn/start + user/message).
@@ -490,6 +492,12 @@ $("#composer").onsubmit = async (e) => {
     body: JSON.stringify({ text, autoApprove: $("#perm-picker").value === "full", approvalMode: $("#perm-picker").value === "per-call" ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
   });
   $("#status").textContent = "";
+};
+$("#stop").onclick = async () => {
+  if (!currentId) return;
+  $("#stop").textContent = "停止中…";
+  await fetch(api(`/sessions/${currentId}/cancel`), { method: "POST" }).catch(() => {});
+  $("#stop").textContent = "■ 停止";
 };
 
 $("#input").addEventListener("keydown", (e) => {
