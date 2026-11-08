@@ -12,7 +12,7 @@ export { parseFrontmatter }; // back-compat re-export (tests import from here)
 /** L1 index: [{name, description}] for every skill in the project. */
 export function skillIndex(projects, projectId, cache = new FileCache()) {
   if (!projectId || !projects) return [];
-  const dir = join(projects.dir, projectId, "skills");
+  const dir = join(projects.dirOf?.(projectId) ?? join(projects.dir, projectId), "skills");
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
@@ -29,7 +29,7 @@ export function skillIndex(projects, projectId, cache = new FileCache()) {
 export function loadSkill(projects, projectId, name, resource) {
   if (!projectId || !projects) throw new Error("skill_load requires a project-bound session");
   const safe = String(name).replace(/[^\w.\-]/g, "_");
-  const dir = join(projects.dir, projectId, "skills", safe);
+  const dir = join(projects.dirOf?.(projectId) ?? join(projects.dir, projectId), "skills", safe);
   const f = join(dir, "SKILL.md");
   if (!existsSync(f)) throw new Error(`Skill not found: ${safe}`);
   const { body } = parseFrontmatter(readFileSync(f, "utf8"));

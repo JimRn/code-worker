@@ -7,7 +7,7 @@ import { join } from "node:path";
 /** List reports of a project (newest first). */
 export function listOutputs(projects, projectId) {
   if (!projectId || !projects) return [];
-  const dir = join(projects.dir, projectId, "outputs");
+  const dir = join(projects.dirOf?.(projectId) ?? join(projects.dir, projectId), "outputs");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => f.endsWith(".md")).sort().reverse();
 }

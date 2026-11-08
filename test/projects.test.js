@@ -14,7 +14,7 @@ test("projects: CRUD, structure, repo default, instructions", () => {
   assert.equal(store.list().length, 1);
   assert.equal(store.addRepo(p.id, "api"), "api");
   assert.deepEqual(store.get(p.id).repos.sort(), ["api", "main"]);
-  assert.equal(store.repoDir(p.id), join(dir, p.id, "repos", "main")); // default first repo
+  assert.equal(store.repoDir(p.id), join(dir, "my-app", "repos", "main")); // default first repo; dir is NAME-named
   assert.match(store.instructions(p.id), /Project Instructions/);
   assert.throws(() => store.create(""), /required/);
 });

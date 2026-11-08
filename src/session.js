@@ -39,6 +39,21 @@ export class SessionStore {
   registerProjection(type, handler) { this.projectionHandlers.set(type, handler); return () => this.projectionHandlers.delete(type); }
   /** Title plugin registers how to read a title from the log tail; core only calls it. */
   registerTitleReader(fn) { this.titleReader = fn; return () => { this.titleReader = undefined; }; }
+  /** Resolve a project's on-disk dir by id OR by name (dir names are by name;
+   * scan project.json ids so id bindings keep working after renames). */
+  projectDir(projectIdOrName) {
+    const direct = join(this.projectsDir, projectIdOrName);
+    if (existsSync(join(direct, "project.json"))) return direct;
+    for (const d of readdirSync(this.projectsDir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const full = join(this.projectsDir, d.name);
+      const pj = join(full, "project.json");
+      if (!existsSync(pj)) continue;
+      let meta; try { meta = JSON.parse(readFileSync(pj, "utf8")); } catch { continue; }
+      if (meta.id === projectIdOrName || d.name === projectIdOrName) return full;
+    }
+    return direct; // not found: fall back so the error names the requested dir
+  }
   /** Lightweight list: binding from meta.json + title from last lines (no full open). */
   listLight() {
     if (!existsSync(this.homeDir)) return [];
@@ -95,7 +110,7 @@ export class SessionStore {
     this.cache.delete(id);
     const binding = s.binding?.projectId ? s.binding : null;
     if (binding) {
-      const trashDir = join(this.projectsDir, binding.projectId, "trash");
+      const trashDir = join(this.projectDir(binding.projectId), "trash");
       mkdirSync(trashDir, { recursive: true });
       renameSync(s.dir, join(trashDir, id));
       return trashDir;
@@ -106,13 +121,13 @@ export class SessionStore {
   }
   /** Restore a trashed session into its project scope. */
   restore(projectId, id) {
-    const src = join(this.projectsDir, projectId, "trash", id);
+    const src = join(this.projectDir(projectId), "trash", id);
     if (!existsSync(src)) throw new Error(`Session not in trash: ${id}`);
     renameSync(src, join(this.homeDir, id));
   }
   /** List trashed sessions of a project. */
   listTrash(projectId) {
-    const dir = join(this.projectsDir, projectId, "trash");
+    const dir = join(this.projectDir(projectId), "trash");
     if (!existsSync(dir)) return [];
     return readdirSync(dir)
       .map((sid) => {

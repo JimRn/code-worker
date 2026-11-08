@@ -11,7 +11,7 @@ import { parseFrontmatter } from "./frontmatter.js";
 /** List agents of a project: [{name, description}]. */
 export function agentList(projects, projectId, cache = new FileCache()) {
   if (!projectId || !projects) return [];
-  const dir = join(projects.dir, projectId, "agents");
+  const dir = join(projects.dirOf?.(projectId) ?? join(projects.dir, projectId), "agents");
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
@@ -54,7 +54,7 @@ export function deleteAgent(projects, projectId, name) {
 /** Load one agent: instructions (body) + tool whitelist. */
 export function loadAgent(projects, projectId, name, cache = new FileCache()) {
   if (!projectId || !projects || name === "default") return null; // default = unrestricted
-  const f = join(projects.dir, projectId, "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
+  const f = join(projects.dirOf?.(projectId) ?? join(projects.dir, projectId), "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
   const content = cache.read(f);
   if (!content) return null;
   const { meta, body } = parseFrontmatter(content);

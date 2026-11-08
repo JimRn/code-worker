@@ -1,7 +1,8 @@
 // Projects (P1): project-level management with strict isolation.
-// Layout: <projectsDir>/<id>/{project.json, AGENTS.md, docs/, skills/, agents/, outputs/, repos/<repo>/}
+// Layout: <projectsDir>/<project-name>/{project.json, AGENTS.md, docs/, skills/, agents/, outputs/, repos/<repo>/}
+// Directories are named by project NAME (human-readable); project.json holds the stable uuid id.
 // Env: CW_PROJECTS_DIR overrides the location (default ~/.code-worker/projects).
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { FileCache } from "./file-cache.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -14,16 +15,42 @@ export function projectsDir() {
 const SUBDIRS = ["docs", "skills", "agents", "outputs", "repos"];
 const AGENTS_TEMPLATE = "# Project Instructions\n\nDescribe project conventions, architecture, and rules every agent session must follow.\n";
 
+/** Filesystem-safe directory name for a project: the name itself, sanitized
+ * only for path separators/control chars, deduped against existing dirs. */
+export function safeDirName(name) {
+  return String(name ?? "").trim().replace(/[\\/\0]/g, "_").replace(/\s+/g, " ").slice(0, 80) || "project";
+}
+
 export class ProjectStore {
   constructor(dir = projectsDir(), { cache = new FileCache() } = {}) {
     this.dir = dir;
     this.cache = cache;
     mkdirSync(this.dir, { recursive: true });
+    this.migrate();
+  }
+  /** Rename legacy id-named dirs to name-named (best-effort, no overwrite). */
+  migrate() {
+    for (const d of readdirSync(this.dir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const full = join(this.dir, d.name);
+      const pj = join(full, "project.json");
+      if (!existsSync(pj)) continue;
+      let meta; try { meta = JSON.parse(readFileSync(pj, "utf8")); } catch { continue; }
+      const want = safeDirName(meta.name);
+      if (d.name === want) continue;
+      const target = join(this.dir, want);
+      if (existsSync(target)) continue; // never clobber; leave for manual resolution
+      try { renameSync(full, target); } catch { /* concurrent migrate: leave as-is */ }
+    }
   }
   create(name) {
     if (!name || !String(name).trim()) throw new Error("project name is required");
     const id = randomUUID().slice(0, 8);
-    const dir = join(this.dir, id);
+    const base = safeDirName(name);
+    // Dedupe: append a short id suffix when the name dir is taken by another project.
+    let dirName = base;
+    while (existsSync(join(this.dir, dirName, "project.json"))) dirName = `${base}-${id.slice(0, 4)}`;
+    const dir = join(this.dir, dirName);
     mkdirSync(dir, { recursive: true });
     for (const d of SUBDIRS) mkdirSync(join(dir, d), { recursive: true });
     const meta = { id, name: String(name).trim(), createdAt: Date.now(), repos: [] };
@@ -40,13 +67,34 @@ export class ProjectStore {
       .filter(Boolean);
   }
   get(id) {
-    const dir = join(this.dir, id);
-    if (!existsSync(join(dir, "project.json"))) return null;
+    const dir = this.dirOf(id);
+    if (!dir || !existsSync(join(dir, "project.json"))) return null;
     const meta = JSON.parse(readFileSync(join(dir, "project.json"), "utf8"));
     // Creation order from project.json (readdir order is alphabetical).
     const onDisk = existsSync(join(dir, "repos")) ? readdirSync(join(dir, "repos")) : [];
     const repos = [...(meta.repos ?? []), ...onDisk.filter((r) => !(meta.repos ?? []).includes(r))];
     return { ...meta, repos, dir };
+  }
+  /** Resolve the on-disk directory for an id or name (scan, not direct join). */
+  dirOf(id) {
+    if (!id) return null;
+    const direct = join(this.dir, id);
+    if (existsSync(join(direct, "project.json"))) return direct;
+    for (const d of readdirSync(this.dir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const full = join(this.dir, d.name);
+      const pj = join(full, "project.json");
+      if (!existsSync(pj)) continue;
+      let meta; try { meta = JSON.parse(readFileSync(pj, "utf8")); } catch { continue; }
+      if (meta.id === id || d.name === id || meta.name === id) return full;
+    }
+    return null;
+  }
+  /** Project root directory (by id or name). */
+  projectDir(id) {
+    const dir = this.dirOf(id);
+    if (!dir) throw new Error(`Project not found: ${id}`);
+    return dir;
   }
   addRepo(projectId, repoName) {
     const p = this.get(projectId);
@@ -95,6 +143,7 @@ export class ProjectStore {
   }
   /** Project instructions, injected into the system prompt every turn (mtime-cached). */
   instructions(projectId) {
-    return this.cache.read(join(this.dir, projectId, "AGENTS.md")) ?? "";
+    const dir = this.dirOf(projectId);
+    return dir ? this.cache.read(join(dir, "AGENTS.md")) ?? "" : "";
   }
 }

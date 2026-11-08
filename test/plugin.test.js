@@ -42,8 +42,8 @@ test("scoped isolation: concurrent turns in different projects never cross works
       ctx.require("agentLoop").runTurn(sb, "hello"),
     ]);
     const dirA = projects.repoDir(a.id).split("repos")[0];
-    assert.ok(roots.some((r) => r.includes(a.id)), roots.join(" | "));
-    assert.ok(roots.some((r) => r.includes(b.id)), roots.join(" | "));
+    assert.ok(roots.some((r) => r.includes("proj-a")), roots.join(" | "));
+    assert.ok(roots.some((r) => r.includes("proj-b")), roots.join(" | "));
     void dirA;
     // after both turns, default root restored
     assert.equal(ctx.require("fs").root, ws);

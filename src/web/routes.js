@@ -343,8 +343,7 @@ export function registerTerminalRoutes(app) {
     // it is NOT the terminal owner (owner stays "web" for UI terminals).
     const cwdSession = body.cwdSessionId ?? body.sessionId;
     const pid = cwdSession ? store.open(cwdSession).binding?.projectId : (body.projectId || null);
-    const repo = cwdSession ? store.open(cwdSession).binding?.repo : undefined;
-    if (pid) return ctx.get("projects").repoDir(pid, repo);
+    if (pid) return ctx.get("projects").projectDir(pid); // project-level dir, not repo-level
     return fs.root;
   };
   app.route("POST", "/api/terminals", async (req, res) => {
