@@ -284,6 +284,8 @@ async function refreshSessions() {
 
 async function selectSession(id) {
   currentId = id;
+  sending = false; // switching sessions releases any stuck send lock
+  hideThinking();
   await refreshSessions();
   openStream(id);
   const snap = await (await fetch(api(`/sessions/${id}`))).json();
@@ -485,7 +487,7 @@ $("#composer").onsubmit = async (e) => {
   // arrives right after via SSE turn/start + user/message).
   showThinking();
   $("#status").textContent = "运行中…";
-  setTimeout(() => { sending = false; }, 30000); // failsafe release
+  setTimeout(() => { sending = false; }, 10000); // failsafe release (turns usually finish sooner)
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
