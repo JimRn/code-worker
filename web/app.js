@@ -66,6 +66,7 @@ function renderEvent(ev) {
   }
   if (ev.type === "turn/end") {
     hideThinking();
+    sending = false;
     // Any tool block still without output means the turn died mid-tool: mark it.
     currentTurn?.el.querySelectorAll(".tool-block").forEach((b) => {
       if (!b.querySelector(".tb-out").textContent) b.querySelector(".tb-out").textContent = "(未完成：轮次中断)";
@@ -395,15 +396,18 @@ $("#new-session").onclick = async () => {
   selectSession(id);
 };
 
+let sending = false;
 $("#composer").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#input").value.trim();
-  if (!text || !currentId) return;
+  if (!text || !currentId || sending) return; // double-Enter / rapid sends ignored
+  sending = true;
   $("#input").value = "";
   // Acknowledge immediately: thinking indicator in the chat (user bubble
   // arrives right after via SSE turn/start + user/message).
   showThinking();
   $("#status").textContent = "运行中…";
+  setTimeout(() => { sending = false; }, 30000); // failsafe release
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -464,6 +468,7 @@ $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel")
 // Thinking indicator: shown the moment a message is sent, removed when the
 // first assistant content (or turn end) arrives.
 function showThinking() {
+  hideThinking(); // singleton: rapid sends never stack indicators
   const box = $("#messages");
   const t = document.createElement("div");
   t.id = "thinking";
