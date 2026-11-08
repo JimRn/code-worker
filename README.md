@@ -90,3 +90,8 @@ node src/cli.js --web --host 127.0.0.1            # 仅本机
 - `fs` 缝：`.ssh/.aws/.gnupg/.dsh` 在任何 workspace 下均不可读/写（`LocalFs.resolve` 层拦截）；workspace 切换另有 allowlist（启动 root / home / tmp 子树，realpath 后校验）。
 - `bash` 工具：命令文本层无法可靠拦截敏感路径访问，依赖审批门（`--yes` / Web 批准 / 逐次审批）+ 仅可信 LAN 使用。
 - `settings/test` 只打已配置 host；token 只走 header/query bootstrap，CLI 打印用占位符。
+
+## 已知上限（对照 DeepSeek 架构）
+
+- 插件注册表在代码内（`src/plugins.js`），加新插件需改注册表 + `profiles/personal.json` 两处；未达到 DSH 的外部插件目录 + patch 分发模型。
+- `binding.js` 的校验与 `file-cache.js` 的 mtime 缓存是直接 import 的 util 层，未走 ctx 服务键（访问路径已知）。

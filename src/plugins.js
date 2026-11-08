@@ -16,32 +16,37 @@ import { installSkills } from "./skills.js";
 import { installAgents } from "./agents.js";
 import { installOutputs } from "./outputs.js";
 
+/** Dependency-declared plugin entries (inject-style): profile dispatch verifies
+ *  each entry's `deps` are already provided before apply (fail loud, named). */
+const entry = (deps, apply) => ({ deps, apply });
+
 export const PLUGINS = {
-  session: (ctx, env) => ctx.provide("sessions", new SessionStore(env.home ?? ".code-worker/sessions")),
-  tools: (ctx) => ctx.provide("tools", new ToolRegistry(ctx)),
-  "fs-local": (ctx, env) => ctx.provide("fs", new LocalFs(env.workspace)),
-  "tool-fs": (ctx) => registerFsTools(ctx),
-  "shell-local": (ctx, env) => ctx.provide("shell", new LocalShell(env.workspace, { timeoutMs: env.shellTimeoutMs })),
-  "tool-bash": (ctx) => registerBashTool(ctx),
-  todo: (ctx) => registerTodoTools(ctx),
-  projects: (ctx, env) => ctx.provide("projects", new ProjectStore(env.projectsDir)),
-  settings: (ctx, env) => ctx.provide("settings", new SettingsStore(env.home ?? ".code-worker")),
-  llm: (ctx, env) => {
+  session: entry([], (ctx, env) => ctx.provide("sessions", new SessionStore(env.home ?? ".code-worker/sessions"))),
+  tools: entry([], (ctx) => ctx.provide("tools", new ToolRegistry(ctx))),
+  "fs-local": entry([], (ctx, env) => ctx.provide("fs", new LocalFs(env.workspace))),
+  "tool-fs": entry(["tools", "fs"], (ctx) => registerFsTools(ctx)),
+  "shell-local": entry([], (ctx, env) => ctx.provide("shell", new LocalShell(env.workspace, { timeoutMs: env.shellTimeoutMs }))),
+  "tool-bash": entry(["tools", "shell"], (ctx) => registerBashTool(ctx)),
+  todo: entry(["tools"], (ctx) => registerTodoTools(ctx)),
+  projects: entry([], (ctx, env) => ctx.provide("projects", new ProjectStore(env.projectsDir))),
+  settings: entry([], (ctx, env) => ctx.provide("settings", new SettingsStore(env.home ?? ".code-worker"))),
+  llm: entry([], (ctx, env) => {
     ctx.provide("modelConfig", env.modelConfig); // mutable ref: Web settings live-update
     const llm = new LlmService();
     ctx.provide("llm", llm);
     if (env.mock) ctx.effect(() => llm.registerAdapter("openai-compatible", new MockAdapter()));
     else ctx.effect(() => llm.registerAdapter("openai-compatible", new OpenAICompatibleAdapter({ config: env.modelConfig })));
-  },
-  compaction: (ctx, env) => ctx.provide("compaction", new CompactionService(ctx, env.compaction)),
-  "project-isolation": (ctx) => installProjectIsolation(ctx),
-  "title-generator": (ctx) => installTitleGenerator(ctx),
-  skills: (ctx) => installSkills(ctx),
-  agents: (ctx) => installAgents(ctx),
-  outputs: (ctx) => installOutputs(ctx),
-  "agent-loop": (ctx, env) => ctx.provide("agentLoop", new AgentLoop(ctx, {
+  }),
+  compaction: entry(["llm"], (ctx, env) => ctx.provide("compaction", new CompactionService(ctx, env.compaction))),
+  "project-isolation": entry(["fs", "shell", "projects"], (ctx) => installProjectIsolation(ctx)),
+  "title-generator": entry(["llm"], (ctx) => installTitleGenerator(ctx)),
+  // skills/agents/outputs resolve projects lazily at call time (no apply-time dep).
+  skills: entry(["tools"], (ctx) => installSkills(ctx)),
+  agents: entry(["tools"], (ctx) => installAgents(ctx)),
+  outputs: entry(["tools"], (ctx) => installOutputs(ctx)),
+  "agent-loop": entry(["tools", "llm"], (ctx, env) => ctx.provide("agentLoop", new AgentLoop(ctx, {
     maxSteps: env.maxSteps, toolResultMaxBytes: env.toolResultMaxBytes,
     provider: "openai-compatible", config: env.modelConfig,
-  })),
-  "guard-approval": (ctx, env) => installApprovalGuard(ctx, { autoApprove: env.approval, guarded: env.guardedTools, timeoutMs: env.approvalTimeoutMs }),
+  }))),
+  "guard-approval": entry(["tools"], (ctx, env) => installApprovalGuard(ctx, { autoApprove: env.approval, guarded: env.guardedTools, timeoutMs: env.approvalTimeoutMs })),
 };

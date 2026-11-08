@@ -47,7 +47,10 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   for (const name of profile.plugins ?? Object.keys(PLUGINS)) {
     const plugin = PLUGINS[name];
     if (!plugin) throw new Error(`Unknown plugin in profile: ${name}`);
-    await plugin(ctx, sharedEnv);
+    for (const dep of plugin.deps ?? []) {
+      if (!ctx.get(dep)) throw new Error(`Plugin ${name} requires ctx.${dep} (missing: check profile order)`);
+    }
+    await plugin.apply(ctx, sharedEnv);
   }
 
   return { ctx, profile, store: ctx.require("sessions"), dispose: () => ctx.dispose() };
