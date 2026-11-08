@@ -3,7 +3,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { BLOCKED_DIRS, isInBlockedDir } from "./policy.js";
 
 // Per-turn scoped root (DSH core/scope analogue): concurrent turns keep their
 // own workspace; no shared mutable field is ever reassigned. Each LocalFs
@@ -18,13 +17,18 @@ export class FsService {
 }
 
 export class LocalFs extends FsService {
-  constructor(workspace) { super(); this.defaultRoot = resolve(workspace); this.scope = new AsyncLocalStorage(); }
+  constructor(workspace, { blocked } = {}) {
+    super(); this.defaultRoot = resolve(workspace); this.scope = new AsyncLocalStorage();
+    // Sensitive-dir policy is injectable (path-policy plugin supplies it);
+    // provider default fails closed when no plugin configured the policy.
+    this.blocked = blocked ?? new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
+  }
   get root() { return this.scope.getStore() ?? this.defaultRoot; }
   set root(dir) { this.defaultRoot = resolve(dir); } // boot-time default only
   /** Run fn with a scoped root (concurrent-safe). */
   withRoot(dir, fn) { return this.scope.run(resolve(dir), fn); }
-  /** Sensitive directory names: single definition in src/policy.js. */
-  static BLOCKED = BLOCKED_DIRS;
+  /** Legacy alias for consumers that read LocalFs.BLOCKED. */
+  static BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
   /** Resolve inside workspace; escape/sensitive = loud error (confinement).
    *  Canonicalizes via realpath (nearest existing ancestor + remainder) so
    *  symlinks inside the workspace cannot escape or enter sensitive dirs. */
@@ -39,7 +43,7 @@ export class LocalFs extends FsService {
     abs = join(realpathSync(abs), ...rest);
     const root = realpathSync(this.root);
     if (abs !== root && !abs.startsWith(root + sep)) throw new Error(`Path escapes workspace: ${p}`);
-    if (isInBlockedDir(abs, sep)) throw new Error(`Path in sensitive directory: ${p}`);
+    if (abs.split(sep).some((seg) => this.blocked.has(seg))) throw new Error(`Path in sensitive directory: ${p}`);
     return abs;
   }
   async readFile(p) { return readFileSync(this.resolve(p), "utf8"); }
