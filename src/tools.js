@@ -54,15 +54,18 @@ export class ToolRegistry {
  * autoApprove ref: {current:boolean, mode:"auto"|"per-call", pending:Map, notify?}
  * In per-call mode the executor suspends until the Web UI decides (see server /api/approvals).
  */
-export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file", "bash"], timeoutMs = 30000 }) {
-  const guardedSet = new Set(guarded);
+export function installApprovalGuard(ctx, { autoApprove, guarded, timeoutMs = 30000 }) {
+  // Live source when a policies service exists; otherwise the boot-time list.
+  const guardedSet = guarded ?? new Set();
+  const live = () => ctx.get("policies")?.guarded;
+  const has = (name) => (live()?.size ? live().has(name) : guardedSet.size ? guardedSet.has(name) : ["write_file", "bash"].includes(name));
   const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
   ref.pending ??= new Map();
   ref.bySession ??= new Map(); // sessionId -> {current, mode}; Web turns are session-scoped
   // Global ref is the CLI fallback; per-session entries override it.
   const stateFor = (sid) => (sid && ref.bySession.get(sid)) || ref;
   return ctx.on(EV.TOOLS_PRE_EXECUTE, async (req, next) => {
-    if (!guardedSet.has(req.name)) return next(req);
+    if (!has(req.name)) return next(req);
     const st = stateFor(req.sessionId);
     if (st.current) return next(req); // auto-approved
     if (st.mode === "per-call") {

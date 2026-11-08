@@ -40,6 +40,7 @@
     <label class="approve"><input type="checkbox" id="approve"> 批准写文件/命令</label>
     <label class="approve"><input type="checkbox" id="per-call"> 逐次审批</label>
     <button id="open-settings" type="button">⚙ 模型设置</button>
+    <button id="open-policies" type="button">🛡 Policy 配置</button>
     <div id="status" class="status"></div>
     <div id="conn" class="status">● 连接中…</div>
     <div id="model-info" class="status"></div>
@@ -146,6 +147,21 @@
   <div class="pv-card">
     <div class="pv-head"><span id="pv-title"></span><span class="spacer"></span><button id="pv-download" type="button">⬇ 下载</button><button id="pv-close" type="button">✕</button></div>
     <div id="pv-body" class="pv-body"></div>
+  </div>
+</div>
+<div id="policy-modal" hidden>
+  <div class="modal-card">
+    <div id="policy-title">Policy 配置</div>
+    <div id="policy-body">
+      <label>敏感目录（blockedDirs，每行一个）<textarea id="pol-blocked" rows="4"></textarea></label>
+      <label>需审批的工具（guardedTools，每行一个）<textarea id="pol-guarded" rows="6"></textarea></label>
+      <div class="muted">保存后即时生效，并持久化到 policies.json（重启后仍生效）</div>
+      <div id="policy-error" class="status" style="color:#f85149"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="policy-cancel" type="button">取消</button>
+      <button id="policy-save" type="button">保存</button>
+    </div>
   </div>
 </div>
 <div id="modal" hidden>

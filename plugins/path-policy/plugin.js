@@ -2,14 +2,24 @@
 // tools/pre-execute guard (defense in depth behind the fs seam). The policy
 // set itself stays data (src/policy.js); behavior lives here, config-able.
 import { BLOCKED_DIRS } from "../../src/policy.js";
+import { PolicyStore } from "../../src/policy-store.js";
 
 export const plugin = {
   name: "path-policy",
   deps: ["tools?"],
-  configSchema: { properties: { blockedDirs: true } },
+  configSchema: { properties: { blockedDirs: true, guardedTools: true } },
   apply(ctx, env) {
-    const blocked = new Set(env.pluginConfig?.blockedDirs ?? BLOCKED_DIRS);
+    const store = env.home ? new PolicyStore(env.home) : null;
+    const stored = store?.get();
+    const blocked = new Set(stored?.blockedDirs?.length ? stored.blockedDirs : (env.pluginConfig?.blockedDirs ?? BLOCKED_DIRS));
+    const guarded = new Set(stored?.guardedTools?.length ? stored.guardedTools : (env.pluginConfig?.guardedTools ?? []));
     const isBlocked = (p, sep = "/") => String(p ?? "").split(sep).some((seg) => blocked.has(seg));
+    // Live governance service: routes mutate these sets (persisted via store).
+    ctx.provide("policies", {
+      blocked, guarded,
+      setBlocked: (dirs) => { blocked.clear(); for (const d of dirs) blocked.add(d); },
+      setGuarded: (tools) => { guarded.clear(); for (const t of tools) guarded.add(t); },
+    });
     ctx.provide("pathPolicy", { blocked, isBlocked });
     // Tool-layer guard: scan string args for blocked path segments.
     ctx.on("tools/pre-execute", async (req, next) => {

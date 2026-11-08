@@ -39,7 +39,14 @@
         "pruneBytes": 2000,
         "keepRecent": 4
       },
-      "guard-approval": {
+      "guard-approval": {},
+      "path-policy": {
+        "blockedDirs": [
+          ".ssh",
+          ".aws",
+          ".gnupg",
+          ".dsh"
+        ],
         "guardedTools": [
           "write_file",
           "bash",

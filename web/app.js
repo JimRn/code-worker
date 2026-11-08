@@ -803,6 +803,24 @@ async function refreshEnv() {
     refreshEnv();
   }));
 }
+// --- Policy editor (sidebar, live-applied governance config) ---
+$("#open-policies").onclick = async () => {
+  const cur = await (await fetch(api("/policies"))).json().catch(() => ({}));
+  $("#pol-blocked").value = (cur.blockedDirs ?? []).join("\n");
+  $("#pol-guarded").value = (cur.guardedTools ?? []).join("\n");
+  $("#policy-error").textContent = "";
+  $("#policy-modal").hidden = false;
+};
+$("#policy-cancel").onclick = () => { $("#policy-modal").hidden = true; };
+$("#policy-save").onclick = async () => {
+  const body = {
+    blockedDirs: $("#pol-blocked").value.split("\n").map((x) => x.trim()).filter(Boolean),
+    guardedTools: $("#pol-guarded").value.split("\n").map((x) => x.trim()).filter(Boolean),
+  };
+  const r = await (await fetch(api("/policies"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
+  if (r.error) { $("#policy-error").textContent = r.error; return; }
+  $("#policy-modal").hidden = true;
+};
 $("#env-add").onclick = async () => {
   const pid = $("#project-picker")?.value;
   const key = $("#env-key").value.trim(), value = $("#env-val").value, secret = $("#env-secret").checked;

@@ -369,6 +369,29 @@ export function registerSessionRoutes(app) {
 /** Terminal routes (Web UI PTY). cwd is confined through the fs seam —
  * the HTTP surface gets the same workspace isolation as the tools. */
 /** Project env vars: metadata only (secret values never served). */
+/** Governance config (policy): blocked dirs + approval-guarded tools.
+ * Persisted to policies.json, live-applied through the policies service. */
+export function registerPolicyRoutes(app) {
+  const { ctx, sendJson, readBody } = app;
+  if (!ctx.get("policies")) return; // capability gate
+  app.route("GET", "/api/policies", async (req, res) => {
+    const pol = ctx.require("policies");
+    sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded] });
+  });
+  app.route("PUT", "/api/policies", async (req, res) => {
+    const body = await readBody(req);
+    try {
+      const pol = ctx.require("policies");
+      if (body.blockedDirs !== undefined) pol.setBlocked(body.blockedDirs);
+      if (body.guardedTools !== undefined) pol.setGuarded(body.guardedTools);
+      const { PolicyStore } = await import("../policy-store.js");
+      const { join } = await import("node:path");
+      new PolicyStore(ctx.require("settings").dir ?? join(process.cwd(), ".code-worker")).set(body);
+      sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded] });
+    } catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+}
+
 export function registerProjectEnvRoutes(app) {
   const { ctx, sendJson, readBody } = app;
   const env = () => ctx.get("projectEnv");
