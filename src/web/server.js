@@ -91,6 +91,7 @@ export function createWebServer({ ctx, store, approval, token }) {
       // --- session RPC + SSE + turn (core) ---
       if (url.pathname === "/api/sessions" && req.method === "GET") {
         const projectId = url.searchParams.get("projectId");
+        const agentName = url.searchParams.get("agent");
         const ids = existsSync(store.homeDir)
           ? readdirSync(store.homeDir).filter((id) => {
               try {
@@ -101,13 +102,15 @@ export function createWebServer({ ctx, store, approval, token }) {
           : [];
         return sendJson(res, 200, {
           sessions: ids
-            .map((id) => { const s = store.open(id); return { id, title: s.title(), projectId: s.binding?.projectId }; })
-            .filter((s) => !projectId || s.projectId === projectId),
+            .map((id) => { const s = store.open(id); return { id, title: s.title(), projectId: s.binding?.projectId, agent: s.binding?.agent }; })
+            .filter((s) => !projectId || s.projectId === projectId)
+            .filter((s) => !agentName || s.agent === agentName),
         });
       }
       if (url.pathname === "/api/sessions" && req.method === "POST") {
         const body = await readBody(req).catch(() => ({}));
         if (!body.projectId) return sendJson(res, 400, { error: "projectId is required (sessions must be project-scoped)" });
+        if (!body.agent) return sendJson(res, 400, { error: "agent is required (every session must bind an agent)" });
         const binding = { projectId: body.projectId, repo: body.repo, agent: body.agent };
         const { validateBinding } = await import("../binding.js");
         const v = validateBinding(ctx.get("projects"), binding);

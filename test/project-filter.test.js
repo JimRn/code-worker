@@ -15,8 +15,10 @@ test("sessions filtered by projectId", async () => {
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     const p = ctx.require("projects").create("filt");
+    const { createAgent } = await import("../src/agents.js");
+    createAgent(ctx.require("projects"), p.id, { name: "a1", description: "tester" });
     const mk = async (body) => (await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json()).id;
-    const inProj = await mk({ projectId: p.id });
+    const inProj = await mk({ projectId: p.id, agent: "a1" });
     // sessions must be project-scoped: unbound create is rejected
     const rejected = await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     assert.equal(rejected.status, 400);

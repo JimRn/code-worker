@@ -19,10 +19,12 @@ test("status surface: snapshot exposes title+usage; client renders conn/running 
     workspace: mkdtempSync(join(tmpdir(), "cw-st-ws-")), autoApprove: approval, mock: true, home: mkdtempSync(join(tmpdir(), "cw-st-home-")),
   });
   const proj = ctx.require("projects").create("t");
+  const { createAgent } = await import("../src/agents.js");
+  createAgent(ctx.require("projects"), proj.id, { name: "a1", description: "tester" });
   const server = await startWebServer({ ctx, store, approval }, { port: 0, host: "127.0.0.1" });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id }) })).json();
+    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id, agent: "a1" }) })).json();
     const snap = await (await fetch(`${base}/api/sessions/${id}`)).json();
     assert.ok("title" in snap && "usage" in snap);
     assert.deepEqual(snap.usage, { prompt: 0, completion: 0, total: 0, cacheRead: 0, cacheWrite: 0, hitRate: 0 });

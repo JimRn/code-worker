@@ -28,6 +28,8 @@ test("web settings: redacted read, write-only key, live reconfigure without rest
   const { ctx, store, dispose } = await bootProfile(new URL("../profiles/personal.json", import.meta.url).pathname, { workspace: ws, autoApprove: approval, home: mkdtempSync(join(tmpdir(), 'cw-home-')) });
   // profile.home is .code-worker relative to cwd; pass mock=false and no env key -> adapter error only on call
   const proj = ctx.require("projects").create("t");
+  const { createAgent } = await import("../src/agents.js");
+  createAgent(ctx.require("projects"), proj.id, { name: "a1", description: "tester" });
   const server = await startWebServer({ ctx, store, approval }, { port: 0, host: "127.0.0.1" });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
@@ -44,7 +46,7 @@ test("web settings: redacted read, write-only key, live reconfigure without rest
     assert.equal(t.ok, true);
     assert.deepEqual(t.models, ["stub-1"]);
     // a turn now uses the new endpoint/model without restart
-    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id }) })).json();
+    const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id, agent: "a1" }) })).json();
     await fetch(`${base}/api/sessions/${id}/turn`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "hi" }) });
     for (let i = 0; i < 50; i++) {
       const snap = await (await fetch(`${base}/api/sessions/${id}`)).json();

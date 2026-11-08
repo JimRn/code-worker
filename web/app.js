@@ -226,7 +226,11 @@ function openStream(id) {
 
 async function refreshSessions() {
   const pid = $("#project-picker").value;
-  const { sessions } = await (await fetch(api(`/sessions${pid ? `?projectId=${encodeURIComponent(pid)}` : ""}`))).json();
+  const ag = $("#agent-picker").value;
+  const params = new URLSearchParams();
+  if (pid) params.set("projectId", pid);
+  if (ag) params.set("agent", ag);
+  const { sessions } = await (await fetch(api(`/sessions${params.toString() ? `?${params}` : ""}`))).json();
   $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${escAttr(s.id)}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
   document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
   // If the current session is not in this project's list, switch to the first one.
@@ -286,7 +290,7 @@ async function refreshProjects() {
     `<option value="">（先选择 Project）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
   refreshAgents();
-  $("#new-session").disabled = !$("#project-picker").value;
+  $("#new-session").disabled = !$("#project-picker").value || !$("#agent-picker").value;
   refreshSessions();
   refreshRepos();
 }
@@ -353,12 +357,16 @@ $("#new-project").onclick = async () => {
 };
 $("#project-picker").onchange = () => {
   wsPath = ".";
-  $("#new-session").disabled = !$("#project-picker").value;
   refreshSessions(); refreshWorkspace(); refreshAgents();
+};
+$("#agent-picker").onchange = () => {
+  $("#new-session").disabled = !$("#project-picker").value || !$("#agent-picker").value;
+  refreshSessions();
 };
 
 $("#new-session").onclick = async () => {
   if (!$("#project-picker").value) { alert("先选择 Project（会话必须属于某个 Project）"); return; }
+  if (!$("#agent-picker").value) { alert("先选择 Agent（每个会话必须关联一个 Agent）"); return; }
   const projectId = $("#project-picker").value || undefined;
   const agent = $("#agent-picker").value || undefined;
   const repo = $("#repo-picker").value || undefined;
