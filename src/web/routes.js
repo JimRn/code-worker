@@ -339,8 +339,11 @@ export function registerTerminalRoutes(app) {
   const defaultCwd = (body) => {
     const fs = ctx.get("fs");
     if (body.cwd) return fs.resolve(body.cwd);
-    const pid = body.sessionId ? store.open(body.sessionId).binding?.projectId : (body.projectId || null);
-    const repo = body.sessionId ? store.open(body.sessionId).binding?.repo : undefined;
+    // cwdSessionId is the chat session whose project supplies the default cwd;
+    // it is NOT the terminal owner (owner stays "web" for UI terminals).
+    const cwdSession = body.cwdSessionId ?? body.sessionId;
+    const pid = cwdSession ? store.open(cwdSession).binding?.projectId : (body.projectId || null);
+    const repo = cwdSession ? store.open(cwdSession).binding?.repo : undefined;
     if (pid) return ctx.get("projects").repoDir(pid, repo);
     return fs.root;
   };
