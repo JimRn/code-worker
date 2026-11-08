@@ -558,6 +558,10 @@ function termOpenWs() {
   termWs.onclose = () => { termWs = null; };
 }
 async function termConnect() {
+  if (typeof Terminal === "undefined" || typeof FitAddon === "undefined") {
+    $("#xterm-holder").textContent = "xterm.js failed to load (CDN unreachable?). Check network and refresh.";
+    return;
+  }
   if (!termId) {
     const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
     termId = r.id;
