@@ -212,19 +212,32 @@ function renderEvent(ev) {
   }
   else if (ev.type === "system/message") { return; } // model-only: never render in chat
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
-  else if (ev.type === "todo/write") { renderTodos(ev.data.todos); return; }
+  else if (ev.type === "todo/write") { renderTodos(ev.data.todos, ev.seq); return; }
   else if (ev.type === "assistant/attempt") { div.className = "msg tool"; div.textContent = `⚠ ${ev.data.error}`; }
   else return; // turn/step markers are structural, not rendered
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
 
-function renderTodos(todos) {
-  $("#todos").hidden = !todos.length;
+// Todo state lives IN the conversation (DSH-style): every todo/write lands
+// as a checklist card in the transcript at the point the model updated it,
+// so progress is readable inline with the surrounding turns.
+let lastTodoSeq = -1;
+function renderTodos(todos, seq) {
+  if (seq !== undefined) {
+    if (seq <= lastTodoSeq) return; // already replayed
+    lastTodoSeq = seq;
+  }
+  if (!todos?.length) return;
+  const box = $("#messages");
   const done = todos.filter((t) => t.status === "completed").length;
-  $("#todo-progress").textContent = `${done}/${todos.length}`;
-  $("#todo-list").innerHTML = todos.map((t) =>
-    `<li class="${t.status}">${t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "⬜"} ${esc(t.content)}</li>`).join("");
+  const card = document.createElement("div");
+  card.className = "todo-card";
+  card.innerHTML = `<div class="todo-head">📋 任务 <span>${done}/${todos.length}</span></div><ul>${
+    todos.map((t) => `<li class="${t.status}">${t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "⬜"} ${esc(t.content)}</li>`).join("")
+  }</ul>`;
+  (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(card);
+  box.scrollTop = box.scrollHeight;
 }
 
 async function updateUsage() {
@@ -236,6 +249,7 @@ async function updateUsage() {
 function openStream(id) {
   stream?.close();
   $("#messages").innerHTML = "";
+  lastTodoSeq = -1;
   currentTurn = null;
   stream = new EventSource(api(`/sessions/${id}/stream`));
   stream.onopen = () => { $("#conn").textContent = "● 已连接"; $("#conn").style.color = "#3fb950"; };
@@ -289,7 +303,7 @@ async function selectSession(id) {
   await refreshSessions();
   openStream(id);
   const snap = await (await fetch(api(`/sessions/${id}`))).json();
-  renderTodos(snap.todos ?? []);
+  renderTodos(snap.todos ?? [], Number.MAX_SAFE_INTEGER);
   updateUsage();
 }
 
