@@ -68,7 +68,11 @@ export function installApprovalGuard(ctx, { autoApprove, guarded, timeoutMs = 30
     if (!has(req.name)) return next(req);
     const st = stateFor(req.sessionId);
     if (st.current) return next(req); // auto-approved
-    if (st.mode === "per-call") {
+    // "ask" means: prompt the user. When a Web UI is attached (notify set),
+    // suspend the tool until it approves/denies — same as per-call. Without
+    // any UI (CLI), fall through to the loud deny below (--yes overrides).
+    const interactive = st.mode === "per-call" || Boolean(ref.notify);
+    if (interactive && !st.current) {
       const decision = await new Promise((resolve) => {
         const rawMs = st.timeoutMs ?? timeoutMs;
         const timeoutMsClamped = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : 30000;
