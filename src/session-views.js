@@ -5,21 +5,24 @@
 export function deriveMessages(events) {
   const msgs = [];
   const knownCalls = new Set(); // assistant tool_call ids seen (orphan tool results dropped)
+  const systemTexts = []; // system messages hoisted to the front (strict providers reject late system)
   for (const ev of events) {
     if (ev.type === "compaction/summary") {
       msgs.length = 0;
+      systemTexts.length = 0;
       knownCalls.clear();
-      msgs.push({ role: "system", content: `[Earlier conversation summarized]\n${ev.data.text}` });
+      systemTexts.push(`[Earlier conversation summarized]\n${ev.data.text}`);
       continue;
     }
-    if (ev.type === "system/message") msgs.push({ role: "system", content: ev.data.text });
+    if (ev.type === "system/message") systemTexts.push(ev.data.text); // hoisted below
     else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });
     else if (ev.type === "assistant/message") {
       // Drop invalid calls (name "None"/empty) persisted by misbehaving providers.
       const calls = (ev.data.toolCalls ?? []).filter((t) => t.name && t.name !== "None");
       for (const t of calls) knownCalls.add(t.id);
       msgs.push({
-        role: "assistant", content: ev.data.text || null,
+        // NOTE: content must be "" (not null) when tool_calls present (strict providers 400 on null).
+        role: "assistant", content: ev.data.text || "",
         // Wire format (not internal shape): strict providers reject {name,args}.
         tool_calls: calls.length ? calls.map((t) => ({ id: t.id, type: "function", function: { name: t.name, arguments: JSON.stringify(t.args ?? {}) } })) : undefined,
       });
@@ -29,7 +32,20 @@ export function deriveMessages(events) {
       if (knownCalls.has(ev.data.callId)) msgs.push({ role: "tool", tool_call_id: ev.data.callId, content: ev.data.output });
     }
   }
-  return msgs;
+  // Drop EVERY unpaired tool_call (no result anywhere): strict providers 400
+  // histories with tool_calls that have no matching tool result (compaction,
+  // interrupted turns, provider flakiness). Assistant stays, tool_calls shrink.
+  const resultIds = new Set(msgs.filter((m) => m.role === "tool").map((m) => m.tool_call_id));
+  for (const m of msgs) {
+    if (m.tool_calls) {
+      m.tool_calls = m.tool_calls.filter((t) => resultIds.has(t.id));
+      if (!m.tool_calls.length) delete m.tool_calls;
+    }
+  }
+  // System messages first (deduped), then the rest in log order.
+  const seen = new Set();
+  const system = systemTexts.filter((t) => { if (seen.has(t)) return false; seen.add(t); return true; }).map((content) => ({ role: "system", content }));
+  return [...system, ...msgs];
 }
 
 /** Latest todo list (log-only durable state). */
