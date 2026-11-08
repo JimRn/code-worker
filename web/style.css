@@ -225,3 +225,12 @@ button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 
 .q-ignore { background:transparent; border:0; color:#59636e; cursor:pointer; }
 .q-submit { background:#1c1e21; color:#fff; border:0; border-radius:8px; padding:8px 18px; cursor:pointer; }
 .q-submit:disabled { opacity:.5; cursor:default; }
+@media print {
+  body * { visibility: hidden; }
+  #preview-modal, #preview-modal * { visibility: visible; }
+  #preview-modal { position: static; background: none; }
+  .pv-card { border: 0; max-height: none; width: auto; }
+  .pv-head { display: none; }
+  .pv-body { overflow: visible; }
+  @page { margin: 12mm; }
+}

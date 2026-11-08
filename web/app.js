@@ -823,6 +823,7 @@ function loadLib(url, globalName) {
   });
 }
 $("#pv-download").onclick = () => { if (pvUrl) location.href = pvUrl; };
+$("#pv-pdf").onclick = () => { $("#preview-modal").classList.add("printing"); window.print(); setTimeout(() => $("#preview-modal").classList.remove("printing"), 500); };
 $("#pv-close").onclick = () => { $("#preview-modal").hidden = true; };
 $("#preview-modal").addEventListener("click", (e) => { if (e.target.id === "preview-modal") $("#preview-modal").hidden = true; });
 
