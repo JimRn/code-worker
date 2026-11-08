@@ -20,7 +20,7 @@ export function registerProjectRoutes(app) {
   app.route("GET", /^\/api\/projects\/([\w-]+)$/, async (req, res, m) => {
     const project = projects().get(m[1]);
     if (!project) return sendJson(res, 404, { error: "project not found" });
-    sendJson(res, 200, { id: project.id, name: project.name, repos: project.repos, instructions: projects.instructions(m[1]) });
+    sendJson(res, 200, { id: project.id, name: project.name, repos: project.repos, instructions: projects().instructions(m[1]) });
   });
   app.route("POST", /^\/api\/projects\/([\w-]+)\/repos$/, async (req, res, m) => {
     const body = await readBody(req);
