@@ -55,12 +55,15 @@ export function createWebServer({ ctx, store, approval, token }) {
       routes.push({ method, match: typeof pattern === "string" ? (p) => p === pattern : (p) => { const m = p.match(pattern); return m ? m : null; }, handler });
     },
   };
-  registerProjectRoutes(app);
-  registerSettingsRoutes(app);
-  registerWorkspaceRoutes(app);
-  registerApprovalRoutes(app);
-  registerSessionRoutes(app);
-  registerTerminalRoutes(app);
+  // Capability-gated route registration: a route group mounts only when
+  // its services exist, so removing a plugin genuinely removes its HTTP
+  // surface instead of 500ing at request time.
+  registerApprovalRoutes(app); // approvals are host transport state, not a plugin
+  if (ctx.get("projects") && ctx.get("sessions")) registerProjectRoutes(app);
+  if (ctx.get("settings") && ctx.get("modelConfig")) registerSettingsRoutes(app);
+  if (ctx.get("fs") && ctx.get("shell")) registerWorkspaceRoutes(app);
+  if (ctx.get("sessions") && ctx.get("agentLoop")) registerSessionRoutes(app);
+  if (ctx.get("terminals")) registerTerminalRoutes(app);
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>
