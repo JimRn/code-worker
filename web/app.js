@@ -73,6 +73,19 @@ function closeTurn(ts) {
   currentTurn = null;
 }
 
+function parseChoices(text) {
+  const out = [];
+  for (const line of String(text).split("\n")) {
+    const m = line.match(/^\s*(?:\d+[.)、]|[-*•])\s+(.+\S)\s*$/);
+    if (m) out.push(m[1].replace(/^\*\*(.*?)\*\*/, "$1").replace(/\*\*/g, "").slice(0, 40));
+  }
+  return out;
+}
+async function sendChoice(text) {
+  if (!currentId || sending) return;
+  $("#input").value = text;
+  $("#composer").requestSubmit();
+}
 function renderEvent(ev) {
   const box = $("#messages");
   // Turn grouping: tool/reasoning blocks collapse under a turn header.
@@ -206,6 +219,20 @@ function renderEvent(ev) {
       mdToHtml(ev.data.text || "") +
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓${ev.data.usage.prompt_tokens_details?.cached_tokens ? `（缓存 ${ev.data.usage.prompt_tokens_details.cached_tokens}）` : ""}</div>` : "");
     div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
+    // Clickable choices (numbered/bulleted option lists): click to answer,
+    // with a free-text field for anything else.
+    const choices = parseChoices(ev.data.text || "");
+    if (choices.length >= 2) {
+      const bar = document.createElement("div");
+      bar.className = "choices";
+      bar.innerHTML = choices.map((c, i) => `<button class="choice" data-i="${i}">${esc(c)}</button>`).join("") +
+        `<span class="choice-custom"><input placeholder="或输入其他答案…"><button class="choice-send">发送</button></span>`;
+      bar.querySelectorAll(".choice").forEach((b) => (b.onclick = () => sendChoice(choices[+b.dataset.i])));
+      const ci = bar.querySelector("input");
+      bar.querySelector(".choice-send").onclick = () => { if (ci.value.trim()) sendChoice(ci.value.trim()); };
+      ci.onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing && ci.value.trim()) sendChoice(ci.value.trim()); };
+      div.appendChild(bar);
+    }
     if (ev.data.usage) updateUsage();
     (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
     box.scrollTop = box.scrollHeight;
