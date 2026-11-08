@@ -23,6 +23,7 @@ export class AgentLoop {
       return await isolate(session, () => session.store.scope.run(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
+      ctx.get("tools")?.clearLatches?.(session.id); // fresh user message: policy latches reset
       const systemText = await ctx.waterfall(EV.SYSTEM_PROMPT, "You are Code Worker, a coding agent. Use tools when needed.");
       // Dedup: only log when changed, so repeated turns don't bloat the log/context.
       const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");

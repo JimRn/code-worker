@@ -4,6 +4,17 @@ import { EV } from "./events.js";
 export class ToolRegistry {
   constructor(ctx) {
     this.ctx = ctx; this.tools = new Map();
+    // Per-session policy latch: once a policy blocks a call, every further
+    // call this turn is denied the same way — the model cannot bypass by
+    // switching tools or obfuscating the command.
+    this.latches = new Map(); // sessionId -> {policy, message}
+    this._initExecute();
+  }
+  /** AgentLoop calls this at turn start so the next user message starts clean. */
+  clearLatches(sessionId) { if (sessionId) this.latches.delete(sessionId); }
+  /** Re-attach core execute listener after constructor-body patching. */
+  _initExecute() {
+    const ctx = this.ctx;
     // Innermost tools/execute handler: actually invokes the tool (user listeners wrap it via next()).
     ctx.on(EV.TOOLS_EXECUTE, async (req) => {
       const tool = this.tools.get(req.name);
@@ -27,6 +38,11 @@ export class ToolRegistry {
   async execute(calls, { maxBytes = 20000, sessionId, session, projectId, binding } = {}) {
     const results = [];
     for (const call of calls) {
+      const latched = sessionId ? this.latches.get(sessionId) : undefined;
+      if (latched) {
+        results.push({ callId: call.id, name: call.name, output: `Denied: ${latched.message} (policy block is final for this turn — do not retry with variants; tell the user)`, isError: true, policy: latched.policy });
+        continue;
+      }
       const tool = this.tools.get(call.name);
       if (!tool) { results.push({ callId: call.id, name: call.name, output: `Error: unknown tool ${call.name}`, isError: true }); continue; }
       // Narrow capabilities are injected by the owning plugins via
@@ -35,7 +51,12 @@ export class ToolRegistry {
       let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, session };
       req = await this.ctx.waterfall(EV.TOOLS_PRE_EXECUTE, req);
       delete req.session; // listeners may use it; tools never receive the live Session
-      if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true, policy: req.policy ?? "unknown" }); continue; }
+      if (req.denied) {
+        const policy = req.policy ?? "unknown";
+        results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true, policy });
+        if (sessionId) this.latches.set(sessionId, { policy, message: req.denied });
+        continue;
+      }
       let output;
       try { output = await this.ctx.waterfall(EV.TOOLS_EXECUTE, req); }
       catch (err) { output = `Error: ${err.message}`; }
