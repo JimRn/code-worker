@@ -288,10 +288,10 @@ $("#perm-picker").onchange = (e) => {
 async function refreshProjects() {
   const { projects } = await (await fetch(api("/projects"))).json();
   $("#project-picker").innerHTML =
-    `<option value="">（先选择 Project）</option>` +
-    projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
+    projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("") +
+    `<option value="__new__">+ 新建 Project…</option>`;
   refreshAgents();
-  $("#new-session").disabled = !$("#project-picker").value;
+  $("#new-session").disabled = !$("#project-picker").value || $("#project-picker").value === "__new__";
   refreshSessions();
   refreshRepos();
 }
@@ -377,12 +377,13 @@ $("#new-project").onclick = async () => {
   await refreshProjects();
   refreshSessions();
 };
-$("#project-picker").onchange = () => {
+$("#project-picker").onchange = async () => {
+  if ($("#project-picker").value === "__new__") { $("#new-project").click(); return; }
   wsPath = ".";
   refreshSessions(); refreshWorkspace(); refreshAgents();
 };
 $("#agent-picker").onchange = () => {
-  $("#new-session").disabled = !$("#project-picker").value;
+  $("#new-session").disabled = !$("#project-picker").value || $("#project-picker").value === "__new__";
   refreshSessions();
 };
 
