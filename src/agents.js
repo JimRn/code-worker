@@ -53,7 +53,7 @@ export function deleteAgent(projects, projectId, name) {
 
 /** Load one agent: instructions (body) + tool whitelist. */
 export function loadAgent(projects, projectId, name) {
-  if (!projectId || !projects) return null;
+  if (!projectId || !projects || name === "default") return null; // default = unrestricted
   const f = join(projects.dir, projectId, "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
   const content = cachedRead(f);
   if (!content) return null;
@@ -79,7 +79,7 @@ export function installAgents(ctx) {
   // reopening the session store inside the guard.
   ctx.on("tools/pre-execute", async (req, next) => {
     const binding = req.binding ?? sessionScope.getStore()?.binding ?? null;
-    if (!binding?.agent) return next(req); // no agent bound: unrestricted by design
+    if (!binding?.agent || binding.agent === "default") return next(req); // default agent: unrestricted
     const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent);
     if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }
     if (agent.tools && !agent.tools.includes(req.name)) {

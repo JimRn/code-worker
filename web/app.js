@@ -290,7 +290,7 @@ async function refreshProjects() {
     `<option value="">（先选择 Project）</option>` +
     projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("");
   refreshAgents();
-  $("#new-session").disabled = !$("#project-picker").value || !$("#agent-picker").value;
+  $("#new-session").disabled = !$("#project-picker").value;
   refreshSessions();
   refreshRepos();
 }
@@ -381,15 +381,15 @@ $("#project-picker").onchange = () => {
   refreshSessions(); refreshWorkspace(); refreshAgents();
 };
 $("#agent-picker").onchange = () => {
-  $("#new-session").disabled = !$("#project-picker").value || !$("#agent-picker").value;
+  $("#new-session").disabled = !$("#project-picker").value;
   refreshSessions();
 };
 
 $("#new-session").onclick = async () => {
   if (!$("#project-picker").value) { alert("先选择 Project（会话必须属于某个 Project）"); return; }
-  if (!$("#agent-picker").value) { alert("先选择 Agent（每个会话必须关联一个 Agent）"); return; }
   const projectId = $("#project-picker").value || undefined;
-  const agent = $("#agent-picker").value || undefined;
+  const agent = $("#agent-picker").value || "default"; // default agent is a valid binding
+  $("#agent-picker").value = agent;
   const repo = $("#repo-picker").value || undefined;
   const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent, repo }) })).json();
   selectSession(id);

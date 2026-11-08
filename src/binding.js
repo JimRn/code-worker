@@ -9,6 +9,6 @@ export function validateBinding(projects, { projectId, agent } = {}) {
     return { ok: true };
   }
   if (!projects?.get(projectId)) return { ok: false, error: "project not found" };
-  if (agent && !loadAgent(projects, projectId, agent)) return { ok: false, error: "agent not found in project" };
+  if (agent && agent !== "default" && !loadAgent(projects, projectId, agent)) return { ok: false, error: "agent not found in project" };
   return { ok: true };
 }
