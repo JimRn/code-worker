@@ -143,6 +143,7 @@ export function createWebServer({ ctx, store, approval, token }) {
         }
         if (m[3] === "stream" && req.method === "GET") {
           res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+          res.flushHeaders(); // open immediately so the client flips to "connected"
           for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
           const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
           if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
