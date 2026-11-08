@@ -74,12 +74,23 @@ function closeTurn(ts) {
 }
 
 function parseChoices(text) {
-  const out = [];
-  for (const line of String(text).split("\n")) {
-    const m = line.match(/^\s*(?:\d+[.)、]|[-*•])\s+(.+\S)\s*$/);
-    if (m) out.push(m[1].replace(/^\*\*(.*?)\*\*/, "$1").replace(/\*\*/g, "").slice(0, 40));
+  // Only treat a list as choices when it reads like a question: at least two
+  // NUMBERED items, or bullets right after a "?"/"选择" line. Plain bullet
+  // instructions (玩法/说明) must not become clickable buttons.
+  const lines = String(text).split("\n");
+  const numbered = [];
+  const bulleted = [];
+  for (const line of lines) {
+    const nm = line.match(/^\s*\d+[.)、]\s+(.+\S)\s*$/);
+    if (nm) numbered.push(nm[1]);
+    const bm = line.match(/^\s*[-*•]\s+(.+\S)\s*$/);
+    if (bm) bulleted.push(bm[1]);
   }
-  return out;
+  const clean = (v) => v.replace(/^\*\*(.*?)\*\*/, "$1").replace(/\*\*/g, "").slice(0, 40);
+  if (numbered.length >= 2) return numbered.map(clean);
+  const asks = lines.some((l) => /\?\s*$/.test(l) || /选择|你想|想选|要哪个|做什么/.test(l));
+  if (asks && bulleted.length >= 2) return bulleted.map(clean);
+  return [];
 }
 async function sendChoice(text) {
   if (!currentId || sending) return;
