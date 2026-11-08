@@ -46,7 +46,7 @@ export class SessionStore {
         const file = readdirSync(full).find((f) => f.startsWith("session.v"));
         if (file) {
           const lines = readFileSync(join(full, file), "utf8").trim().split("\n");
-          for (let i = lines.length - 1; i >= 0 && i >= lines.length - 30; i--) {
+          for (let i = lines.length - 1; i >= 0 && i >= lines.length - 200; i--) {
             try { const ev = JSON.parse(lines[i]); if (ev.type === "session/title") { title = ev.data.text; break; } } catch { /* skip */ }
           }
         }
