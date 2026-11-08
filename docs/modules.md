@@ -1,13 +1,13 @@
 # 模块说明
 
-> 行数统计基于 2026-11-06 现状（`wc -l src/**/*.js web/*`），仅供规模参考。
+> **2026-11-08 更新**：插件已目录化（`plugins/<name>/plugin.js` 自动发现），`profile.js` 解析 `plugins` 数组并校验 `config.plugins.<name>`；compaction 事件化（`agent/pre-step`），服务走能力面（`src/service-definitions.js`）。行数/工具数以源码为准，下表仅供历史参考。
 
 ## 核心运行时（`src/`）
 
 | 文件（行数） | 对应上游 DSH | 关键导出 | 职责 |
 |---|---|---|---|
 | `context.js`（71） | Cordis `ctx` + `inject` | `Context{provide/get/require/on/emit/waterfall/serial/effect/dispose}` | 服务注册表 + 类型化事件。三种模式：`emit`（观察）/ `waterfall`（环绕，必须 `next()`）/ `serial`（有序，无 `next`）。`effect` 注册可逆副作用，`dispose` 时回滚。 |
-| `session.js`（118） | `core/session` | `SessionStore / Session`、`deriveMessages()`、`todos()`、`usageTotals()`、`title()`、`writeTodos()`、`subscribe` 广播 | append-only JSONL 日志（`session.v1.jsonl`），唯一事实源；会话目录含 `meta.json`（`{projectId, repo}` binding）。不变量 **Model-visible ⟺ Logged**；同一 id 单例缓存（保证 SSE 订阅者看到追加）；compaction 摘要投影；`todo/write`、标题、用量等从日志派生。 |
+| `session.js`（118） | `core/session` | `SessionStore / Session`、`deriveMessages()`、`todos()`、`usageTotals()`、`title()`、`subscribe` 广播（`writeTodos` 已移至 todo 插件） | append-only JSONL 日志（`session.v1.jsonl`），唯一事实源；会话目录含 `meta.json`（`{projectId, repo}` binding）。不变量 **Model-visible ⟺ Logged**；同一 id 单例缓存（保证 SSE 订阅者看到追加）；compaction 摘要投影；`todo/write`、标题、用量等从日志派生。 |
 | `agent-loop.js`（118） | `core/agent-loop` | `AgentLoop.runTurn()`、`compact()`、`inject()` | Turn = 0..N Step；Step = 1 次模型请求 + 其工具调用。**每轮开始**：① 项目隔离（把 `fs.root`/`shell.workspace` 指向绑定项目的 repo 目录，轮后恢复）；② 每轮实时读取项目 `AGENTS.md` 追加进 system prompt（`## Project instructions (AGENTS.md)` 段，经 `system-prompt/assemble` waterfall）；③ 装配 system prompt、执行 compaction、流式调用、工具管线。LLM 失败记 `assistant/attempt` 后结束本轮。 |
 | `llm.js`（140） | `llm/llm` | `LlmService`、`OpenAICompatibleAdapter`、`DeepSeekAdapter`、`MockAdapter` | 适配器缝：loop 只调 `prepareCall()`，不感知 Provider。绑定调用返回 async generator：`{type:"text",delta}` chunk → `{type:"finish",text,toolCalls,usage}`。配置经可变 ref 读取，Web 设置页改端点/key/model 无需重启。Mock 对 todo/计划/任务关键词会触发 `todo_write`（离线演示）。 |
 | `tools.js`（75） | `core/tools` | `ToolRegistry`、`installApprovalGuard()` | 注册表 + 守卫执行管线：`tools/pre-execute → tools/execute → tools/post-execute`（waterfall），结果按 `maxBytes` 截断；工具只拿到窄能力 `appendTodo`，不给整个 Session。审批守卫对 `write_file`/`bash` 生效（auto 批准 / per-call 挂起等 Web 裁决，超时默认 30s 拒绝）。 |
@@ -30,23 +30,20 @@
 ## Profile（`profiles/personal.json`）
 
 ```json
-{
-  "name": "personal",
-  "home": ".code-worker",
-  "plugins": ["session","system-prompt","tools","fs-local","tool-fs",
-              "shell-local","tool-bash","llm-deepseek","agent-loop","guard-approval"],
-  "config": {
-    "workspace": ".",
-    "maxSteps": 8,
-    "toolResultMaxBytes": 20000,
-    "compaction": { "maxContextChars": 60000, "pruneBytes": 2000, "keepRecent": 4 }
-  }
-}
+{ "name": "personal", "home": ".code-worker",
+  "plugins": ["session","file-cache","tools","fs-local","tool-fs","shell-local","tool-bash",
+              "projects","todo","skills","agents","outputs","terminals","tool-terminal",
+              "settings","model-config","llm","compaction","project-isolation",
+              "title-generator","agent-loop","guard-approval"],
+  "config": { "workspace": ".", "maxSteps": 8, "toolResultMaxBytes": 20000,
+              "guardedTools": ["write_file","bash","report_write","skill_load",
+                               "terminal_open","terminal_send","terminal_read","terminal_kill"],
+              "compaction": { "pruneBytes": 2000, "keepRecent": 4 } } }
 ```
 
-> `plugins` 列表仅作声明，`profile.js` 按固定顺序手写装配，不解析此数组。
+> `plugins` 列表是组合声明：`profile.js` 按序经 `plugin-loader` 自动发现、校验 deps 与 `configSchema`。
 
-## 已注册工具（5 个）
+## 已注册工具（personal profile 约 14 个）
 
 | 工具 | 参数 | 审批 | 后端 |
 |---|---|---|---|
@@ -54,7 +51,9 @@
 | `write_file` | `path`, `content` 必需 | ✅ | `LocalFs.writeFile` |
 | `list_dir` | `path` 可选，默认 `"."` | 否 | `LocalFs.listDir` |
 | `bash` | `command` 必需 | ✅ | `LocalShell.run` |
-| `todo_write` | `todos[]` 必需（≤50） | 否 | `session.writeTodos` |
+| `todo_write` | `todos[]` 必需（≤50） | 否 | todo 插件 `createTodoWriter`（appendTodo 窄能力） |
+| `skill_load` / `report_write` | 见 schema | ✅ | skills / outputs 插件 |
+| `terminal_open/send/read/kill` | id/command | ✅ | `TerminalService`（PTY，cwd 经 fs 隔离） |
 
 ## 设计不变量
 
@@ -74,7 +73,7 @@
 - **新 Provider**：`ctx.get("llm").registerAdapter(name, adapter)`，loop 不变。
 - **会话**：`.code-worker/<id>/session.v1.jsonl` 即完整可重放日志（同目录 `meta.json` 存项目 binding）。
 
-## 测试（`test/`，18 个 `node:test` 文件）
+## 测试（`test/`，29 个 `node:test` 文件）
 
 `harness`（waterfall / 可逆 effect / 端到端日志 / confinement / 审批）、`web`、`settings`、`streaming`、`compaction`、`session-identity`、`retry`、`title`、`usage`、`model-override`、`approval`、`workspace`、`status`、`review2`、`blocked`、`todo`🆕、`render`🆕、`projects`🆕。
 

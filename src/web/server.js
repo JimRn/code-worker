@@ -2,7 +2,7 @@
 // and a session RPC/stream API. Routes are grouped in routes.js; this file
 // owns only transport (static, auth, SSE, turn dispatch).
 import { createServer } from "node:http";
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
@@ -52,7 +52,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   const app = {
     ctx, sendJson, readBody, approval, store, loop, running, sseClients,
     route(method, pattern, handler) {
-      routes.push({ method, match: typeof pattern === "string" ? (p) => p === pattern : (p) => { const m = p.match(pattern); return m ? m : null; }, handler, isRegex: pattern instanceof RegExp });
+      routes.push({ method, match: typeof pattern === "string" ? (p) => p === pattern : (p) => { const m = p.match(pattern); return m ? m : null; }, handler });
     },
   };
   registerProjectRoutes(app);

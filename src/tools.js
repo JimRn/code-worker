@@ -1,10 +1,11 @@
 // Tools seam: scoped registry + guarded execution pipeline.
 // Pipeline (waterfall): tools/pre-execute -> tools/execute -> tools/post-execute
+import { EV } from "./events.js";
 export class ToolRegistry {
   constructor(ctx) {
     this.ctx = ctx; this.tools = new Map();
     // Innermost tools/execute handler: actually invokes the tool (user listeners wrap it via next()).
-    ctx.on("tools/execute", async (req) => {
+    ctx.on(EV.TOOLS_EXECUTE, async (req) => {
       const tool = this.tools.get(req.name);
       if (!tool) throw new Error(`unknown tool ${req.name}`);
       return tool.execute(req.args, req);
@@ -31,12 +32,12 @@ export class ToolRegistry {
       // Narrow capability: tools get appendTodo only (built by the todoWriter factory), never the live Session.
       const todoWriter = this.ctx.get("todoWriter");
       let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, appendTodo: session && todoWriter ? todoWriter(session) : undefined };
-      req = await this.ctx.waterfall("tools/pre-execute", req);
+      req = await this.ctx.waterfall(EV.TOOLS_PRE_EXECUTE, req);
       if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
       let output;
-      try { output = await this.ctx.waterfall("tools/execute", req); }
+      try { output = await this.ctx.waterfall(EV.TOOLS_EXECUTE, req); }
       catch (err) { output = `Error: ${err.message}`; }
-      const post = await this.ctx.waterfall("tools/post-execute", { ...req, output });
+      const post = await this.ctx.waterfall(EV.TOOLS_POST_EXECUTE, { ...req, output });
       output = post && typeof post === "object" && "output" in post ? post.output : post;
       // Bound the complete result (incl. wrapper) — tiny/exact/oversized all bounded.
       const text = typeof output === "string" ? output : JSON.stringify(output);
@@ -58,7 +59,7 @@ export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file"
   ref.bySession ??= new Map(); // sessionId -> {current, mode}; Web turns are session-scoped
   // Global ref is the CLI fallback; per-session entries override it.
   const stateFor = (sid) => (sid && ref.bySession.get(sid)) || ref;
-  return ctx.on("tools/pre-execute", async (req, next) => {
+  return ctx.on(EV.TOOLS_PRE_EXECUTE, async (req, next) => {
     if (!guardedSet.has(req.name)) return next(req);
     const st = stateFor(req.sessionId);
     if (st.current) return next(req); // auto-approved

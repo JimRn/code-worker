@@ -2,12 +2,14 @@
 // Vertical features live in plugins (compaction, project isolation, title
 // generator) and act through events — the loop never calls them directly.
 // Model/provider selection comes solely from ctx "modelConfig".
+import { EV } from "./events.js";
+import { DEFAULT_PROVIDER } from "./model-config.js";
 export class AgentLoop {
   constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, modelConfig, model } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
     this.modelConfig = modelConfig; this.model = model;
   }
-  get provider() { return this.modelConfig?.provider ?? "openai-compatible"; }
+  get provider() { return this.modelConfig?.provider ?? DEFAULT_PROVIDER; }
   currentModel() { return this.modelConfig?.model ?? this.model; }
   async runTurn(session, userText, { onText, model, signal } = {}) {
     const ctx = this.ctx;
@@ -22,7 +24,7 @@ export class AgentLoop {
       return await isolate(session, () => session.store.scope.run(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
-      const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
+      const systemText = await ctx.waterfall(EV.SYSTEM_PROMPT, "You are Code Worker, a coding agent. Use tools when needed.");
       // Dedup: only log when changed, so repeated turns don't bloat the log/context.
       const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
       if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
@@ -30,7 +32,7 @@ export class AgentLoop {
       for (let step = 0; step <= this.maxSteps; step++) {
         // Final step (step == maxSteps) is text-only: summarize, never leave tools hanging.
         // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
-        const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel }, session, systemChars: systemText.length });
+        const pre = await ctx.waterfall(EV.AGENT_PRE_STEP, { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel }, session, systemChars: systemText.length });
         if (pre?.rejected) break;
         // Plugins (e.g. compaction) rewrite messages through this waterfall;
         // the loop simply sends whatever comes back.
@@ -78,17 +80,17 @@ export class AgentLoop {
         }
         await session.append("step/end", { step });
       }
-      await ctx.serial("agent/turn-stopping", { session });
+      await ctx.serial(EV.AGENT_TURN_STOPPING, { session });
       await session.append("turn/end", {});
       turnState = "COMPLETED";
-      await ctx.serial("turn/ended", { session, state: turnState });
+      await ctx.serial(EV.TURN_ENDED, { session, state: turnState });
       return session.deriveMessages();
       }));
     } catch (err) {
       const cancelled = signal?.aborted || err?.name === "AbortError";
       turnState = cancelled ? "CANCELLED" : "FAILED";
       await session.append(cancelled ? "turn/cancelled" : "turn/failed", { error: err.message, state: turnState });
-      await ctx.serial("turn/ended", { session, state: turnState });
+      await ctx.serial(EV.TURN_ENDED, { session, state: turnState });
       throw err;
     } finally {
       this.controllers.delete(session.id);

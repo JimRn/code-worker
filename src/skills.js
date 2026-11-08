@@ -2,6 +2,7 @@
 // Layout per skill: skills/<name>/SKILL.md with YAML-ish frontmatter
 // (name, description) + body; extra files under the skill dir are resources.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { EV } from "./events.js";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { FileCache } from "./file-cache.js";
 import { isInBlockedDir } from "./policy.js";
@@ -48,7 +49,7 @@ export function loadSkill(projects, projectId, name, resource) {
 /** Plugin: L1 index injection + skill_load tool. */
 export function installSkills(ctx) {
   const cache = ctx.get("fileCache") ?? new FileCache();
-  ctx.on("system-prompt/assemble", async (base, next) => {
+  ctx.on(EV.SYSTEM_PROMPT, async (base, next) => {
     const session = ctx.get("sessionScope")?.getStore();
     const index = skillIndex(ctx.get("projects"), session?.binding?.projectId, cache);
     if (!index.length) return next(base);

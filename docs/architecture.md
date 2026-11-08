@@ -34,7 +34,8 @@ flowchart TB
     end
 
     subgraph Host["Host 层"]
-        WEB["web/server.js<br/>静态页 + RPC + SSE 推送 + 项目/上传/导出"]
+        WEB["web/server.js<br/>传输：静态页 + 鉴权 + 路由分发"]
+        ROUTES["web/routes.js<br/>handlers：sessions/projects/settings/workspace/approvals"]
     end
 
     subgraph Runtime["运行时核心 (mini Cordis)"]
@@ -43,7 +44,7 @@ flowchart TB
         SES["session.js · Session<br/>JSONL append-only 日志 + meta.json binding"]
         PROJ["projects.js · ProjectStore<br/>CRUD + repoDir + instructions"]
         COMP["compaction.js<br/>prune + summarize"]
-        PRO["profile.js · bootProfile<br/>personal.json 有序装配"]
+        PRO["profile.js · bootProfile<br/>plugin-loader 自动发现 + deps/config 校验"]
     end
 
     subgraph Seams["能力缝（Definition / Provider / Consumer）"]

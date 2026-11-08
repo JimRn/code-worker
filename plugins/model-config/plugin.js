@@ -1,7 +1,7 @@
 // ModelConfig provider (P0-4): single assembly point for provider/model.
 // Precedence: CLI overrides > OPENAI_*/DEEPSEEK_* env family > stored settings.
 // No other module assembles model selection — they only read ctx "modelConfig".
-import { ModelConfig } from "../../src/model-config.js";
+import { ModelConfig, DEFAULT_PROVIDER } from "../../src/model-config.js";
 
 export const plugin = { name: "model-config", deps: ["settings?"],
   configSchema: { properties: { provider: true } }, apply(ctx, env) {
@@ -11,7 +11,7 @@ export const plugin = { name: "model-config", deps: ["settings?"],
   const overrides = env.modelOverrides ?? {};
   const cfg = ctx.raw("settings")?.getConfig?.() ?? {}; // raw: credentials never on the view
   const mc = new ModelConfig({
-    provider: env.pluginConfig?.provider ?? "openai-compatible",
+    provider: env.pluginConfig?.provider ?? DEFAULT_PROVIDER,
     apiKey: overrides.apiKey ?? envVal("API_KEY") ?? cfg.apiKey ?? undefined,
     baseUrl: overrides.baseUrl ?? envVal("BASE_URL") ?? cfg.baseUrl ?? undefined,
     model: overrides.model ?? envVal("MODEL") ?? cfg.model ?? undefined,

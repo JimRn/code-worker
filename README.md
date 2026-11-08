@@ -1,6 +1,6 @@
 # Code Worker — 个人 DeepSeek Harness
 
-按 `docs/harness-design-summary.md` / `docs/harness-implementation-blueprint.md` 从 0 搭建的极简版 Cordis Harness：零依赖（仅 Node >=20 内置），对照原项目设计要点逐项落地。上游 DeepSeek 源码仅供参考，见 `../reference/deepseek-harness/`（只读，不要在此改代码）。
+按 `docs/harness-design-summary.md` / `docs/harness-implementation-blueprint.md` 从 0 搭建的极简版 Cordis Harness：除 `node-pty`（仅 terminals 插件用）外零依赖（Node >=20 内置），对照原项目设计要点逐项落地。上游 DeepSeek 源码仅供参考，见 `../reference/deepseek-harness/`（只读，不要在此改代码）。
 
 ## 架构对照
 
@@ -48,7 +48,7 @@ npm test   # node --test，覆盖 waterfall/可逆 effect/端到端日志/confin
 
 ## 已知局限
 
-无流式输出、无 compaction、无子代理/Web 检索、无 SQLite 检索；`bash` 在 workspace 目录执行本地 shell（个人使用，默认需 `--yes`）。
+已支持流式模型输出（`assistant/chunk` live-only）和两段 compaction（prune + LLM 摘要，`plugins/compaction`）。尚未做：子代理/Web 检索/SQLite 检索；`bash` 在 workspace 目录执行本地 shell（个人使用，默认需 `--yes`）。
 
 ## Web 界面（参考 DeepSeek Host + Client 结构）
 

@@ -1,5 +1,5 @@
 import { CompactionService, installCompaction } from "../../src/features.js";
-export const plugin = { name: "compaction", deps: ["llm", "modelConfig", "sessions"],
+export const plugin = { name: "compaction", deps: ["llm", "modelConfig", "sessions", "tools?"],
   configSchema: { properties: { contextWindow: true, outputReserve: true, safety: true, pruneBytes: true, keepRecent: true, maxContextChars: true } }, apply(ctx, env) {
   const store = ctx.raw("sessions"); // internal: event/projection registry lives on the store
   store.registerEventType("compaction/summary");

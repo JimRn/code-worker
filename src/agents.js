@@ -3,6 +3,7 @@
 // The agent's instructions stack on the project's; its tool whitelist
 // restricts which tools the session may call.
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { EV } from "./events.js";
 import { join } from "node:path";
 import { FileCache } from "./file-cache.js";
 import { parseFrontmatter } from "./frontmatter.js";
@@ -64,7 +65,7 @@ export function loadAgent(projects, projectId, name, cache = new FileCache()) {
 /** Plugin: agent instruction injection (stacked on project AGENTS.md). */
 export function installAgents(ctx) {
   const cache = ctx.get("fileCache") ?? new FileCache();
-  ctx.on("system-prompt/assemble", async (base, next) => {
+  ctx.on(EV.SYSTEM_PROMPT, async (base, next) => {
     const session = ctx.get("sessionScope")?.getStore();
     const agentName = session?.binding?.agent;
     if (!agentName) return next(base);
@@ -77,7 +78,7 @@ export function installAgents(ctx) {
   // loaded denies everything (fail closed, never silently unrestricted).
   // Binding comes from the explicit req payload (loop-supplied), never from
   // reopening the session store inside the guard.
-  ctx.on("tools/pre-execute", async (req, next) => {
+  ctx.on(EV.TOOLS_PRE_EXECUTE, async (req, next) => {
     const binding = req.binding ?? ctx.get("sessionScope")?.getStore()?.binding ?? null;
     if (!binding?.agent || binding.agent === "default") return next(req); // default agent: unrestricted
     const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent, cache);

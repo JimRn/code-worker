@@ -37,6 +37,8 @@ export class SessionStore {
   registerEventType(type) { this.eventTypes.add(type); return () => this.eventTypes.delete(type); }
   /** Plugins register message-projection folds (e.g. compaction/summary reset). */
   registerProjection(type, handler) { this.projectionHandlers.set(type, handler); return () => this.projectionHandlers.delete(type); }
+  /** Title plugin registers how to read a title from the log tail; core only calls it. */
+  registerTitleReader(fn) { this.titleReader = fn; return () => { this.titleReader = undefined; }; }
   /** Lightweight list: binding from meta.json + title from last lines (no full open). */
   listLight() {
     if (!existsSync(this.homeDir)) return [];
@@ -53,11 +55,8 @@ export class SessionStore {
         const binding = existsSync(join(full, "meta.json")) ? JSON.parse(readFileSync(join(full, "meta.json"), "utf8")) : {};
         let title = null;
         const file = readdirSync(full).find((f) => f.startsWith("session.v"));
-        if (file) {
-          const lines = readFileSync(join(full, file), "utf8").trim().split("\n");
-          for (let i = lines.length - 1; i >= 0 && i >= lines.length - 200; i--) {
-            try { const ev = JSON.parse(lines[i]); if (ev.type === "session/title") { title = ev.data.text; break; } } catch { /* skip */ }
-          }
+        if (file && this.titleReader) {
+          try { title = this.titleReader(readFileSync(join(full, file), "utf8")); } catch { /* unreadable tail: no title */ }
         }
         return { id, title, projectId: binding.projectId, agent: binding.agent };
       });

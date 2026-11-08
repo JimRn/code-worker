@@ -1,3 +1,4 @@
+import { DEFAULT_PROVIDER } from "./model-config.js";
 // LLM seam: Definition (LlmService: prepareCall -> bound call) / Providers (DeepSeek, Mock)
 // agent-loop only ever calls prepareCall(); it never imports a provider.
 export class LlmService {
@@ -8,8 +9,10 @@ export class LlmService {
   }
   /** Bind an adapter before any system/user commit (cancellation there commits nothing).
    * `signal` is forwarded so loop cancellation reaches the wire (fetch). */
-  prepareCall({ provider = "openai-compatible", model, messages, tools = [], signal }) {
-    const adapter = this.adapters.get(provider);
+  prepareCall({ provider = DEFAULT_PROVIDER, model, messages, tools = [], signal }) {
+    // Config may rename the provider after registration (single-backend
+    // profiles); fall back to the sole adapter instead of failing.
+    const adapter = this.adapters.get(provider) ?? (this.adapters.size === 1 ? [...this.adapters.values()][0] : undefined);
     if (!adapter) throw new Error(`Unknown LLM provider: ${provider}`);
     return adapter.prepareCall({ model, messages, tools, signal });
   }

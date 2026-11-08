@@ -307,7 +307,7 @@ export function registerSessionRoutes(app) {
     req.on("close", () => {
       off();
       sseClients.get(session.id)?.delete(res);
-      if ((sseClients.get(session.id)?.size ?? 0) === 0) {
+      if ((sseClients.get(session.id)?.size ?? 0) === 0) { sseClients.delete(session.id);
         for (const [callId, entry] of approval.pending ?? []) {
           if (entry.req.sessionId === session.id) entry.resolve(false);
         }

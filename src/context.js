@@ -13,6 +13,7 @@ export class Context {
    * Known services are stored behind their capability view (service-definitions). */
   provide(key, service) {
     const prev = this.services.get(key);
+    if (prev) console.warn(`[context] ctx.${key} re-provided (shadowing previous service)`);
     const prevRaw = this._raw.get(key);
     this.services.set(key, shouldWrap(key, service) ? wrapService(key, service) : service);
     this._raw.set(key, service);

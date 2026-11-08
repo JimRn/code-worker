@@ -1,6 +1,8 @@
 // Vertical features extracted from AgentLoop (loop slimming):
 // project isolation, title generation, compaction service.
 import { pruneToolResults, estimateChars, summarizeMessages } from "./compaction.js";
+import { EV } from "./events.js";
+import { DEFAULT_PROVIDER } from "./model-config.js";
 
 /** Compaction service: prune (model-free) + summarize when over budget. */
 export class CompactionService {
@@ -43,7 +45,7 @@ export class CompactionService {
  * The loop sends pre.messages as returned by the waterfall; this listener
  * rewrites them (prune, then maybe compact and re-derive). */
 export function installCompaction(ctx, svc) {
-  ctx.on("agent/pre-step", async (req, next) => {
+  ctx.on(EV.AGENT_PRE_STEP, async (req, next) => {
     const session = req.session ?? ctx.get("sessionScope")?.getStore();
     let messages = svc.prune(req.messages ?? []);
     if (session) {
@@ -59,7 +61,7 @@ export function installCompaction(ctx, svc) {
 /** Project isolation plugin: per-turn fs/shell roots + AGENTS.md injection. */
 export function installProjectIsolation(ctx) {
   // Inject project instructions into the system prompt every turn.
-  ctx.on("system-prompt/assemble", async (base, next) => {
+  ctx.on(EV.SYSTEM_PROMPT, async (base, next) => {
     const session = ctx.get("sessionScope")?.getStore();
     const projects = ctx.get("projects");
     const extra = session?.binding?.projectId && projects ? projects.instructions(session.binding.projectId).slice(0, 64 * 1024) : "";
@@ -77,13 +79,13 @@ export function installProjectIsolation(ctx) {
 
 /** Title generator plugin: once per session, after the first turn ends. */
 export function installTitleGenerator(ctx) {
-  ctx.on("turn/ended", async ({ session }) => {
+  ctx.on(EV.TURN_ENDED, async ({ session }) => {
     if (session.title()) return;
     const firstUser = session.events.find((e) => e.type === "user/message");
     if (!firstUser) return;
     try {
       const bound = ctx.require("llm").prepareCall({
-        provider: ctx.get("modelConfig")?.provider ?? "openai-compatible",
+        provider: ctx.get("modelConfig")?.provider ?? DEFAULT_PROVIDER,
         messages: [
           { role: "system", content: "Reply with a short session title (max 8 words, no quotes, same language as the user). Title only." },
           { role: "user", content: firstUser.data.text },

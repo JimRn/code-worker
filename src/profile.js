@@ -42,7 +42,10 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     approvalTimeoutMs: cfg.approvalTimeoutMs ?? 30000,
   };
 
-  for (const name of profile.plugins ?? listPluginNames(pluginsDir)) {
+  const list = profile.plugins ?? listPluginNames(pluginsDir);
+  const dupes = list.filter((n, i) => list.indexOf(n) !== i);
+  if (dupes.length) throw new Error(`Profile ${profile.name ?? profilePath}: duplicate plugin(s): ${[...new Set(dupes)].join(", ")}`);
+  for (const name of list) {
     const plugin = await loadPlugin(name, pluginsDir);
     for (const dep of plugin.deps ?? []) {
       const optional = dep.endsWith("?");
