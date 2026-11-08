@@ -384,8 +384,9 @@ async function refreshUsage() {
   const pid = $("#project-picker").value;
   if (!pid) { $("#usage-panel").textContent = ""; return; }
   const u = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/usage`))).json();
-  const lines = Object.entries(u.byAgent ?? {}).map(([n, t]) => `${n}: ${t.total} tokens（缓存命中 ${t.hitRate}%）`);
-  $("#usage-panel").textContent = u.total?.total ? `用量 ${u.total.total} tokens · ${lines.join(" · ")}` : "";
+  const lines = Object.entries(u.byAgent ?? {}).map(([n, t]) => `${n}: ${t.total}`);
+  $("#usage-chip").textContent = u.total?.total ? `用量 ${u.total.total}` : "";
+  $("#usage-chip").title = lines.length ? lines.join("\n") : "";
 }
 $("#new-agent").onclick = async () => {
   $("#agent-dialog").hidden = !$("#agent-dialog").hidden;

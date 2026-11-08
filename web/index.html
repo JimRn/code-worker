@@ -33,7 +33,6 @@
         <div class="row"><button id="save-agent" type="button">保存</button><button id="cancel-agent" type="button">取消</button></div>
       </div>
     </div>
-    <div id="usage-panel" class="status"></div>
     <select id="repo-picker" title="选择 Repo（可选）"><option value="">（默认 Repo）</option></select>
     <button id="add-repo" type="button" title="添加仓库（空目录或导入已有目录）">+ 仓库</button>
     <button id="new-project" type="button" hidden>+ 新 Project</button>
@@ -70,6 +69,7 @@
         <button type="button" data-view="trace">轨迹</button>
       </div>
       <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
+      <span id="usage-chip" class="status" title="当前 Project Token 用量"></span>
       <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
     <div id="trace-view" hidden>
