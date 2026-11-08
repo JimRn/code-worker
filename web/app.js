@@ -338,22 +338,6 @@ async function refreshProjects() {
   refreshSessions();
   refreshRepos();
 }
-async function refreshRepos() {
-  const pid = $("#project-picker").value;
-  $("#repo-picker").innerHTML = `<option value="">（默认 Repo）</option>`;
-  if (!pid) return;
-  const p = await (await fetch(api(`/projects/${encodeURIComponent(pid)}`))).json();
-  $("#repo-picker").innerHTML += (p.repos ?? []).map((r) => `<option value="${escAttr(r)}">${esc(r)}</option>`).join("");
-}
-$("#add-repo").onclick = async () => {
-  const pid = $("#project-picker").value;
-  if (!pid) return alertBox("先选 Project");
-  const choice = await modal({ title: "添加仓库", body: "仓库名（新建空目录），或填已有目录的绝对路径（导入）：", input: { placeholder: "new-repo" } });
-  if (!choice) return;
-  const body = choice.startsWith("/") ? { importFrom: choice } : { name: choice };
-  await fetch(api(`/projects/${encodeURIComponent(pid)}/repos`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  refreshProjects();
-};
 async function refreshTrash() {
   const pid = $("#project-picker").value;
   $("#trash-list").innerHTML = "";
@@ -471,8 +455,7 @@ $("#new-session").onclick = async () => {
   const projectId = $("#project-picker").value || undefined;
   const agent = $("#agent-picker").value || "default"; // default agent is a valid binding
   $("#agent-picker").value = agent;
-  const repo = $("#repo-picker").value || undefined;
-  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent, repo }) })).json();
+  const { id } = await (await fetch(api("/sessions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId, agent }) })).json();
   selectSession(id);
 };
 
