@@ -30,7 +30,7 @@ test("event registry: feature events need plugin registration", async () => {
     await assert.rejects(() => s.append("unknown/feature", {}), /Unknown session event type/);
     ctx.raw("sessions").registerEventType("unknown/feature"); // internal registry, not on the view
     await s.append("unknown/feature", {});
-    assert.equal(store.registerEventType, undefined); // view does not expose the registry
+    assert.equal(typeof store.registerEventType, "function"); // registry is on the capability view (small, sanctioned)
   } finally { await dispose(); }
 });
 

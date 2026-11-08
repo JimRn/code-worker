@@ -1,6 +1,6 @@
 import { installTitleGenerator } from "../../src/features.js";
 export const plugin = { name: "title-generator", deps: ["llm", "modelConfig", "sessions"], apply(ctx) {
-  const store = ctx.raw("sessions");
+  const store = ctx.require("sessions");
   store.registerEventType("session/title");
   // Core listLight reads titles through this hook (it never names the event).
   ctx.effect(() => store.registerTitleReader((text) => {
