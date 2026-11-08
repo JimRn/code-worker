@@ -21,7 +21,8 @@ export class AgentLoop {
       const lastSystem = [...session.events].reverse().find((e) => e.type === "system/message");
       if (lastSystem?.data.text !== systemText) await session.append("system/message", { text: systemText });
 
-      for (let step = 0; step < this.maxSteps; step++) {
+      for (let step = 0; step <= this.maxSteps; step++) {
+        // Final step (step == maxSteps) is text-only: summarize, never leave tools hanging.
         // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
         const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
         if (pre?.rejected) break;
@@ -32,7 +33,8 @@ export class AgentLoop {
         let result;
         try {
           // Stream: chunks are live-only (assistant/chunk); settlement is one durable message.
-          const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: ctx.require("tools").schemas() });
+          const finalOnly = step === this.maxSteps;
+          const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: finalOnly ? [] : ctx.require("tools").schemas() });
           result = { text: "", toolCalls: [] };
           for await (const chunk of bound()) {
             if (chunk.type === "text") {
