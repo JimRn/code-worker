@@ -12,6 +12,24 @@
     <div class="brand">Code Worker</div>
     <select id="project-picker" title="选择 Project（会话将隔离到该 Project 的仓库）"></select>
     <select id="agent-picker" title="选择 Agent 专家（可选）"><option value="">（默认 Agent）</option></select>
+    <span class="row"><button id="new-agent" type="button" title="创建 Agent">+ Agent</button><button id="del-agent" type="button" title="删除选中 Agent 定义">删除</button></span>
+    <div id="agent-dialog" hidden>
+      <label>名称 <input id="ag-name" placeholder="如 code-reviewer"></label>
+      <label>描述 <input id="ag-desc" placeholder="职责一句话"></label>
+      <div class="tools-checks">
+        <span>工具白名单（勾选允许的；全不选=不限制）</span>
+        <label><input type="checkbox" value="read_file"> read_file</label>
+        <label><input type="checkbox" value="write_file"> write_file</label>
+        <label><input type="checkbox" value="list_dir"> list_dir</label>
+        <label><input type="checkbox" value="bash"> bash</label>
+        <label><input type="checkbox" value="todo_write"> todo_write</label>
+        <label><input type="checkbox" value="skill_load"> skill_load</label>
+        <label><input type="checkbox" value="report_write"> report_write</label>
+      </div>
+      <label>AGENTS.md 正文 <textarea id="ag-body" rows="5" placeholder="职责、行为边界、产出要求…"></textarea></label>
+      <div class="row"><button id="save-agent" type="button">保存</button><button id="cancel-agent" type="button">取消</button></div>
+    </div>
+    <div id="usage-panel" class="status"></div>
     <select id="repo-picker" title="选择 Repo（可选）"><option value="">（默认 Repo）</option></select>
     <button id="add-repo" type="button" title="添加仓库（空目录或导入已有目录）">+ 仓库</button>
     <button id="new-project" type="button">+ 新 Project</button>

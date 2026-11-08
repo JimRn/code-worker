@@ -11,5 +11,5 @@ test("usageTotals sums assistant/message usage", async () => {
   await s.append("assistant/message", { text: "a", usage: { prompt_tokens: 10, completion_tokens: 5 } });
   await s.append("assistant/message", { text: "b" }); // no usage: skipped
   await s.append("assistant/message", { text: "c", usage: { prompt_tokens: 20, completion_tokens: 7 } });
-  assert.deepEqual(s.usageTotals(), { prompt: 30, completion: 12, total: 42 });
+  assert.deepEqual(s.usageTotals(), { prompt: 30, completion: 12, total: 42, cacheRead: 0, cacheWrite: 0, hitRate: 0 });
 });

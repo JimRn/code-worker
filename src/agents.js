@@ -2,7 +2,7 @@
 // agents/<name>/AGENTS.md with frontmatter: description, tools (whitelist).
 // The agent's instructions stack on the project's; its tool whitelist
 // restricts which tools the session may call.
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cachedRead } from "./file-cache.js";
 import { parseFrontmatter } from "./skills.js";
@@ -22,6 +22,31 @@ export function agentList(projects, projectId) {
       return { name: meta.name || d.name, description: meta.description || "" };
     })
     .filter(Boolean);
+}
+
+/** Create an agent definition (name + AGENTS.md). */
+export function createAgent(projects, projectId, { name, description, body, tools }) {
+  if (!projectId || !projects) throw new Error("project is required");
+  const p = projects.get(projectId);
+  if (!p) throw new Error(`Project not found: ${projectId}`);
+  const safe = String(name || "").replace(/[^\w.\-]/g, "_").trim();
+  if (!safe) throw new Error("agent name is required");
+  if (!description?.trim()) throw new Error("agent description is required");
+  const dir = join(p.dir, "agents", safe);
+  if (existsSync(join(dir, "AGENTS.md"))) throw new Error(`Agent already exists: ${safe}`);
+  mkdirSync(dir, { recursive: true });
+  const fm = `---\nname: ${safe}\ndescription: ${description.trim()}${tools?.length ? `\ntools: ${tools.join(", ")}` : ""}\n---\n`;
+  writeFileSync(join(dir, "AGENTS.md"), fm + (body?.trim() || "You are a specialist agent."));
+  return { name: safe, description: description.trim() };
+}
+
+/** Delete an agent definition only (historical sessions keep their binding). */
+export function deleteAgent(projects, projectId, name) {
+  const p = projects.get(projectId);
+  if (!p) throw new Error(`Project not found: ${projectId}`);
+  const dir = join(p.dir, "agents", String(name).replace(/[^\w.\-]/g, "_"));
+  if (!existsSync(join(dir, "AGENTS.md"))) throw new Error(`Agent not found: ${name}`);
+  rmSync(dir, { recursive: true, force: true });
 }
 
 /** Load one agent: instructions (body) + tool whitelist. */

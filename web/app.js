@@ -179,7 +179,7 @@ function renderEvent(ev) {
     div.innerHTML =
       (ev.data.reasoning ? `<div class="reasoning-done"><button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre>${esc(ev.data.reasoning)}</pre></div></div>` : "") +
       mdToHtml(ev.data.text || "") +
-      (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓</div>` : "");
+      (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓${ev.data.usage.prompt_tokens_details?.cached_tokens ? `（缓存 ${ev.data.usage.prompt_tokens_details.cached_tokens}）` : ""}</div>` : "");
     div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
     if (ev.data.usage) updateUsage();
     (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
@@ -311,8 +311,39 @@ async function refreshAgents() {
   $("#agent-picker").innerHTML = `<option value="">（默认 Agent）</option>`;
   if (!pid) return;
   const { agents } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`))).json();
-  $("#agent-picker").innerHTML += agents.map((a) => `<option value="${escAttr(a.name)}">${esc(a.name)}</option>`).join("");
+  $("#agent-picker").innerHTML += agents.map((a) => `<option value="${escAttr(a.name)}">${esc(a.name)} · ${esc(a.description)}</option>`).join("");
+  refreshUsage();
 }
+async function refreshUsage() {
+  const pid = $("#project-picker").value;
+  if (!pid) { $("#usage-panel").textContent = ""; return; }
+  const u = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/usage`))).json();
+  const lines = Object.entries(u.byAgent ?? {}).map(([n, t]) => `${n}: ${t.total} tokens（缓存命中 ${t.hitRate}%）`);
+  $("#usage-panel").textContent = u.total?.total ? `用量 ${u.total.total} tokens · ${lines.join(" · ")}` : "";
+}
+$("#new-agent").onclick = () => { $("#agent-dialog").hidden = !$("#agent-dialog").hidden; };
+$("#cancel-agent").onclick = () => { $("#agent-dialog").hidden = true; };
+$("#save-agent").onclick = async () => {
+  const pid = $("#project-picker").value;
+  if (!pid) return alert("先选 Project");
+  const tools = [...document.querySelectorAll(".tools-checks input:checked")].map((i) => i.value);
+  const r = await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: $("#ag-name").value, description: $("#ag-desc").value, body: $("#ag-body").value, tools }),
+  });
+  const d = await r.json();
+  if (!r.ok) return alert(d.error);
+  $("#agent-dialog").hidden = true;
+  refreshAgents();
+};
+$("#del-agent").onclick = async () => {
+  const pid = $("#project-picker").value;
+  const name = $("#agent-picker").value;
+  if (!pid || !name) return alert("先选 Project 和 Agent");
+  if (!confirm(`删除 Agent 定义 ${name}？（历史会话不受影响）`)) return;
+  await fetch(api(`/projects/${encodeURIComponent(pid)}/agents/${encodeURIComponent(name)}`), { method: "DELETE" });
+  refreshAgents();
+};
 $("#new-project").onclick = async () => {
   const name = prompt("Project 名称：");
   if (!name) return;

@@ -25,7 +25,7 @@ test("status surface: snapshot exposes title+usage; client renders conn/running 
     const { id } = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ projectId: proj.id }) })).json();
     const snap = await (await fetch(`${base}/api/sessions/${id}`)).json();
     assert.ok("title" in snap && "usage" in snap);
-    assert.deepEqual(snap.usage, { prompt: 0, completion: 0, total: 0 });
+    assert.deepEqual(snap.usage, { prompt: 0, completion: 0, total: 0, cacheRead: 0, cacheWrite: 0, hitRate: 0 });
   } finally {
     server.close();
     await dispose();

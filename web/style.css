@@ -128,6 +128,14 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 18px; cursor:pointer; }
 #new-session { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
 #open-settings { background:transparent; border:1px solid var(--line); color:var(--text); padding:8px; }
+#agent-dialog { display:flex; flex-direction:column; gap:8px; border:1px solid var(--line); border-radius:10px; padding:10px; }
+#agent-dialog[hidden] { display:none; }
+#agent-dialog label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
+#agent-dialog input[type="text"], #agent-dialog input:not([type]), #agent-dialog textarea { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; }
+.tools-checks { display:flex; flex-wrap:wrap; gap:8px; color:var(--muted); font-size:12px; }
+.tools-checks label { flex-direction:row; align-items:center; gap:4px; }
+#agent-dialog .row { display:flex; gap:8px; }
+#agent-dialog .row button { flex:1; padding:7px 0; }
 #settings-panel { display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line); padding-top:10px; }
 #settings-panel[hidden] { display:none; }
 #settings-panel label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }

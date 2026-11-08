@@ -48,6 +48,39 @@ export function registerProjectRoutes(app) {
     const { agentList } = await import("../agents.js");
     sendJson(res, 200, { agents: agentList(projects(), m[1]) });
   });
+  app.route("POST", /^\/api\/projects\/([\w-]+)\/agents$/, async (req, res, m) => {
+    const body = await readBody(req);
+    try {
+      const { createAgent } = await import("../agents.js");
+      sendJson(res, 201, createAgent(projects(), m[1], body));
+    } catch (err) { sendJson(res, 400, { error: err.message }); }
+  });
+  app.route("DELETE", /^\/api\/projects\/([\w-]+)\/agents\/([\w.\-]+)$/, async (req, res, m) => {
+    try {
+      const { deleteAgent } = await import("../agents.js");
+      deleteAgent(projects(), m[1], m[2]);
+      sendJson(res, 200, { ok: true });
+    } catch (err) { sendJson(res, 404, { error: err.message }); }
+  });
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/usage$/, async (req, res, m) => {
+    if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
+    const { usageByAgent } = await import("../session-views.js");
+    const store = app.ctx.require("sessions");
+    const sessions = [];
+    const { readdirSync: rd, statSync: st } = await import("node:fs");
+    const { join: j } = await import("node:path");
+    for (const id of rd(store.homeDir)) {
+      try {
+        const full = j(store.homeDir, id);
+        if (!st(full).isDirectory()) continue;
+        const s = store.open(id);
+        if (s.binding?.projectId === m[1]) sessions.push(s);
+      } catch { /* skip non-session dirs */ }
+    }
+    const byAgent = usageByAgent(sessions);
+    const total = Object.values(byAgent).reduce((n, t) => ({ prompt: n.prompt + t.prompt, completion: n.completion + t.completion, total: n.total + t.total, cacheRead: n.cacheRead + t.cacheRead }), { prompt: 0, completion: 0, total: 0, cacheRead: 0 });
+    sendJson(res, 200, { total, byAgent });
+  });
   app.route("PUT", /^\/api\/projects\/([\w-]+)\/instructions$/, async (req, res, m) => {
     const project = projects().get(m[1]);
     if (!project) return sendJson(res, 404, { error: "project not found" });

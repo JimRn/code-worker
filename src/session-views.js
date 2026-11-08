@@ -48,14 +48,32 @@ export function title(events) {
   return null;
 }
 
-/** Sum of token usage across assistant messages. */
+/** Sum of token usage across assistant messages (incl. cache read/write). */
 export function usageTotals(events) {
-  let prompt = 0, completion = 0;
+  let prompt = 0, completion = 0, cacheRead = 0, cacheWrite = 0;
   for (const ev of events) {
     if (ev.type === "assistant/message" && ev.data.usage) {
-      prompt += ev.data.usage.prompt_tokens ?? 0;
-      completion += ev.data.usage.completion_tokens ?? 0;
+      const u = ev.data.usage;
+      prompt += u.prompt_tokens ?? 0;
+      completion += u.completion_tokens ?? 0;
+      cacheRead += u.prompt_tokens_details?.cached_tokens ?? u.cache_read_tokens ?? 0;
+      cacheWrite += u.completion_tokens_details?.reasoning_tokens != null ? 0 : (u.cache_write_tokens ?? 0);
     }
   }
-  return { prompt, completion, total: prompt + completion };
+  const hitRate = prompt > 0 ? (cacheRead / prompt) * 100 : 0;
+  return { prompt, completion, total: prompt + completion, cacheRead, cacheWrite, hitRate: Math.round(hitRate * 10) / 10 };
+}
+
+/** Per-agent usage rollup for a project: {agentName: totals}. */
+export function usageByAgent(sessions) {
+  const byAgent = {};
+  for (const s of sessions) {
+    const name = s.binding?.agent || "default";
+    const t = usageTotals(s.events);
+    const agg = byAgent[name] ??= { prompt: 0, completion: 0, total: 0, cacheRead: 0, hitRate: 0, turns: 0 };
+    agg.prompt += t.prompt; agg.completion += t.completion; agg.total += t.total; agg.cacheRead += t.cacheRead;
+    agg.turns += s.events.filter((e) => e.type === "turn/end").length;
+    agg.hitRate = agg.prompt > 0 ? Math.round((agg.cacheRead / agg.prompt) * 1000) / 10 : 0;
+  }
+  return byAgent;
 }
