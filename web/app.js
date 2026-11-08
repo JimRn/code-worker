@@ -501,6 +501,12 @@ $("#new-session").onclick = async () => {
 };
 
 let sending = false;
+$("#collapse-side").onclick = () => {
+  const sb = $("#sidebar");
+  sb.classList.toggle("collapsed");
+  $("#collapse-side").textContent = sb.classList.contains("collapsed") ? "⟩" : "⟨";
+  if (viewMode === "terminal" && termFit) requestAnimationFrame(() => termFit.fit());
+};
 $("#composer").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#input").value.trim();

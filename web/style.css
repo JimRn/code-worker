@@ -4,6 +4,12 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #app { display:flex; height:100vh; }
 #sidebar { width:240px; flex:none; background:var(--panel); border-right:1px solid var(--line); padding:12px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; min-height:0; }
 #sidebar > * { flex:none; }
+#sidebar.collapsed { width:44px; padding:8px 4px; }
+#sidebar.collapsed > *:not(#collapse-side) { display:none; }
+#sidebar.collapsed .brand { justify-content:center; }
+#sidebar.collapsed #collapse-side { display:inline-flex; }
+.brand { display:flex; align-items:center; justify-content:space-between; }
+#collapse-side { background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:6px; cursor:pointer; padding:2px 8px; }
 #session-list { flex:1 1 auto; min-height:60px; }
 .brand { font-weight:700; font-size:16px; }
 #session-list { list-style:none; margin:0; padding:0; overflow:auto; flex:1; }
