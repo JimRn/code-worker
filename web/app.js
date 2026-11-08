@@ -563,7 +563,8 @@ async function termConnect() {
     return;
   }
   if (!termId) {
-    const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    const proj = $("#project-picker")?.value;
+    const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: currentId || undefined, projectId: proj || undefined }) })).json();
     termId = r.id;
     termXterm = new Terminal({ cursorBlink: true, scrollback: 5000, theme: { background: "#0d1117" } });
     termXterm.open($("#xterm-holder"));

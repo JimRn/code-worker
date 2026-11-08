@@ -332,15 +332,24 @@ export function registerSessionRoutes(app) {
 /** Terminal routes (Web UI PTY). cwd is confined through the fs seam —
  * the HTTP surface gets the same workspace isolation as the tools. */
 export function registerTerminalRoutes(app) {
-  const { ctx, sendJson, readBody } = app;
+  const { ctx, sendJson, readBody, store } = app;
   const terminals = () => ctx.require("terminals");
+  /** Default cwd for a new PTY: explicit cwd wins (fs-confined), else the
+   * project directory of the given session or project, else the workspace. */
+  const defaultCwd = (body) => {
+    const fs = ctx.get("fs");
+    if (body.cwd) return fs.resolve(body.cwd);
+    const pid = body.sessionId ? store.open(body.sessionId).binding?.projectId : (body.projectId || null);
+    const repo = body.sessionId ? store.open(body.sessionId).binding?.repo : undefined;
+    if (pid) return ctx.get("projects").repoDir(pid, repo);
+    return fs.root;
+  };
   app.route("POST", "/api/terminals", async (req, res) => {
     const body = await readBody(req);
     try {
-      const fs = ctx.get("fs");
-      const cwd = body.cwd ? fs.resolve(body.cwd) : fs.root;
+      const cwd = defaultCwd(body);
       const id = await terminals().open(body.sessionId ?? "web", { cwd });
-      sendJson(res, 201, { id });
+      sendJson(res, 201, { id, cwd });
     } catch (err) { sendJson(res, 400, { error: err.message }); }
   });
   app.route("POST", /^\/api\/terminals\/([\w-]+)\/send$/, async (req, res, m) => {
