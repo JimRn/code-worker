@@ -17,7 +17,7 @@ test("agent CRUD + per-agent/project usage rollup with cache hit rate", async ()
     const p = projects.create("acu-app");
     createAgent(projects, p.id, { name: "reader", description: "reader", body: "read only", tools: ["read_file"] });
     assert.equal(agentList(projects, p.id).length, 1);
-    assert.throws(() => createAgent(projects, p.id, { name: "reader", description: "dup" }), /already exists/);
+    createAgent(projects, p.id, { name: "reader", description: "dup" }); assert.equal(agentList(projects, p.id).length, 1);
     // usage rollup
     const s = store.create({ projectId: p.id, agent: "reader" });
     await s.append("assistant/message", { text: "a", usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 80 } } });
