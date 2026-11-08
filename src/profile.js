@@ -48,7 +48,12 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     const plugin = PLUGINS[name];
     if (!plugin) throw new Error(`Unknown plugin in profile: ${name}`);
     for (const dep of plugin.deps ?? []) {
-      if (!ctx.get(dep)) throw new Error(`Plugin ${name} requires ctx.${dep} (missing: check profile order)`);
+      const optional = dep.endsWith("?");
+      const key = optional ? dep.slice(0, -1) : dep;
+      if (!ctx.get(key)) {
+        if (optional) console.warn(`[profile] Plugin ${name} optional dep ctx.${key} missing (degraded mode)`);
+        else throw new Error(`Plugin ${name} requires ctx.${dep} (missing: check profile order)`);
+      }
     }
     await plugin.apply(ctx, sharedEnv);
   }

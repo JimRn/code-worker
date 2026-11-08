@@ -40,10 +40,10 @@ export const PLUGINS = {
   compaction: entry(["llm"], (ctx, env) => ctx.provide("compaction", new CompactionService(ctx, env.compaction))),
   "project-isolation": entry(["fs", "shell", "projects"], (ctx) => installProjectIsolation(ctx)),
   "title-generator": entry(["llm"], (ctx) => installTitleGenerator(ctx)),
-  // skills/agents/outputs resolve projects lazily at call time (no apply-time dep).
-  skills: entry(["tools"], (ctx) => installSkills(ctx)),
-  agents: entry(["tools"], (ctx) => installAgents(ctx)),
-  outputs: entry(["tools"], (ctx) => installOutputs(ctx)),
+  // skills/agents/outputs resolve projects lazily at call time (optional dep).
+  skills: entry(["tools", "projects?"], (ctx) => installSkills(ctx)),
+  agents: entry(["tools", "projects?"], (ctx) => installAgents(ctx)),
+  outputs: entry(["tools", "projects?"], (ctx) => installOutputs(ctx)),
   "agent-loop": entry(["tools", "llm"], (ctx, env) => ctx.provide("agentLoop", new AgentLoop(ctx, {
     maxSteps: env.maxSteps, toolResultMaxBytes: env.toolResultMaxBytes,
     provider: "openai-compatible", config: env.modelConfig,
