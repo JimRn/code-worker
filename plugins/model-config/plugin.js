@@ -9,8 +9,7 @@ export const plugin = { name: "model-config", deps: ["settings?"],
   const family = process.env.OPENAI_API_KEY || process.env.OPENAI_BASE_URL || process.env.OPENAI_MODEL ? "OPENAI" : "DEEPSEEK";
   const envVal = (n) => process.env[`${family}_${n}`];
   const overrides = env.modelOverrides ?? {};
-  const settings = ctx.get("settings");
-  const cfg = settings?.getConfig?.() ?? {};
+  const cfg = ctx.raw("settings")?.getConfig?.() ?? {}; // raw: credentials never on the view
   const mc = new ModelConfig({
     provider: env.pluginConfig?.provider ?? "openai-compatible",
     apiKey: overrides.apiKey ?? envVal("API_KEY") ?? cfg.apiKey ?? undefined,

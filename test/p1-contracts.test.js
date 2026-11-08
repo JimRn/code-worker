@@ -23,13 +23,14 @@ test("capability view: consumers see only declared members", async () => {
 });
 
 test("event registry: feature events need plugin registration", async () => {
-  const { store, dispose } = await boot();
+  const { ctx, store, dispose } = await boot();
   try {
     const s = store.create();
     await s.append("user/message", { text: "x" }); // core type
     await assert.rejects(() => s.append("unknown/feature", {}), /Unknown session event type/);
-    store.registerEventType("unknown/feature");
+    ctx.raw("sessions").registerEventType("unknown/feature"); // internal registry, not on the view
     await s.append("unknown/feature", {});
+    assert.equal(store.registerEventType, undefined); // view does not expose the registry
   } finally { await dispose(); }
 });
 

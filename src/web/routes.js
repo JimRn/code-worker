@@ -330,14 +330,19 @@ export function registerSessionRoutes(app) {
     const body = await readBody(req);
     if (!body.text) return sendJson(res, 400, { error: "text is required" });
     if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
-    const prevApproval = { current: approval.current, mode: approval.mode };
-    approval.current = Boolean(body.autoApprove);
-    if (body.approvalMode) approval.mode = body.approvalMode;
+    // Per-session approval state (guard reads bySession by req.sessionId);
+    // global approval stays the CLI fallback. Only provided fields override.
+    approval.bySession ??= new Map();
+    const prevApproval = approval.bySession.get(session.id) ?? null;
+    const st = { current: prevApproval?.current ?? approval.current, mode: prevApproval?.mode ?? approval.mode };
+    if (body.autoApprove !== undefined) st.current = Boolean(body.autoApprove);
+    if (body.approvalMode) st.mode = body.approvalMode;
+    approval.bySession.set(session.id, st);
     running.add(session.id);
     sendJson(res, 202, { accepted: true });
     loop.runTurn(session, body.text, { model: body.model })
       .catch((e) => console.error("[web] turn failed:", e.message))
-      .finally(() => { running.delete(session.id); approval.current = prevApproval.current; approval.mode = prevApproval.mode; });
+      .finally(() => { running.delete(session.id); if (prevApproval) approval.bySession.set(session.id, prevApproval); else approval.bySession.delete(session.id); });
     return;
   });
 }

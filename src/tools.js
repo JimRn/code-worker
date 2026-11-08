@@ -55,12 +55,16 @@ export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file"
   const guardedSet = new Set(guarded);
   const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
   ref.pending ??= new Map();
+  ref.bySession ??= new Map(); // sessionId -> {current, mode}; Web turns are session-scoped
+  // Global ref is the CLI fallback; per-session entries override it.
+  const stateFor = (sid) => (sid && ref.bySession.get(sid)) || ref;
   return ctx.on("tools/pre-execute", async (req, next) => {
     if (!guardedSet.has(req.name)) return next(req);
-    if (ref.current) return next(req); // auto-approved
-    if (ref.mode === "per-call") {
+    const st = stateFor(req.sessionId);
+    if (st.current) return next(req); // auto-approved
+    if (st.mode === "per-call") {
       const decision = await new Promise((resolve) => {
-        const rawMs = ref.timeoutMs ?? timeoutMs;
+        const rawMs = st.timeoutMs ?? timeoutMs;
         const timeoutMsClamped = Number.isFinite(rawMs) && rawMs > 0 ? rawMs : 30000;
         const timer = setTimeout(() => resolve(false), timeoutMsClamped); // timeout -> deny
         ref.pending.set(req.callId, { resolve: (v) => { clearTimeout(timer); resolve(v); }, req });

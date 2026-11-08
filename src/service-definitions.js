@@ -13,9 +13,9 @@ export const SERVICE_METHODS = {
   shell: ["workspace", "resolveSpec", "run", "withWorkspace"],
   tools: ["register", "list", "schemas", "execute"],
   llm: ["registerAdapter", "prepareCall"],
-  sessions: ["homeDir", "projectsDir", "create", "open", "listLight", "softDelete", "restore", "listTrash", "registerEventType"],
+  sessions: ["homeDir", "projectsDir", "create", "open", "listLight", "softDelete", "restore", "listTrash"],
   projects: ["dir", "create", "list", "get", "addRepo", "importRepo", "repoDir", "instructions"],
-  settings: ["describe", "update", "getWorkspace", "setWorkspace", "getApiKey", "getConfig"],
+  settings: ["describe", "update", "getWorkspace", "setWorkspace"], // credentials: raw-only, never on the view
   agentLoop: ["provider", "maxSteps", "toolResultMaxBytes", "currentModel", "runTurn", "cancel", "inject"],
   compaction: ["prune", "compact", "maybeCompact", "overBudget"],
   fileCache: ["read", "clear"],

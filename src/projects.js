@@ -2,7 +2,7 @@
 // Layout: <projectsDir>/<id>/{project.json, AGENTS.md, docs/, skills/, agents/, outputs/, repos/<repo>/}
 // Env: CW_PROJECTS_DIR overrides the location (default ~/.code-worker/projects).
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { defaultFileCache } from "./file-cache.js";
+import { FileCache } from "./file-cache.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -15,7 +15,7 @@ const SUBDIRS = ["docs", "skills", "agents", "outputs", "repos"];
 const AGENTS_TEMPLATE = "# Project Instructions\n\nDescribe project conventions, architecture, and rules every agent session must follow.\n";
 
 export class ProjectStore {
-  constructor(dir = projectsDir(), { cache = defaultFileCache } = {}) {
+  constructor(dir = projectsDir(), { cache = new FileCache() } = {}) {
     this.dir = dir;
     this.cache = cache;
     mkdirSync(this.dir, { recursive: true });

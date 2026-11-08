@@ -4,11 +4,11 @@
 // restricts which tools the session may call.
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { defaultFileCache } from "./file-cache.js";
+import { FileCache } from "./file-cache.js";
 import { parseFrontmatter } from "./frontmatter.js";
 
 /** List agents of a project: [{name, description}]. */
-export function agentList(projects, projectId, cache = defaultFileCache) {
+export function agentList(projects, projectId, cache = new FileCache()) {
   if (!projectId || !projects) return [];
   const dir = join(projects.dir, projectId, "agents");
   if (!existsSync(dir)) return [];
@@ -24,7 +24,7 @@ export function agentList(projects, projectId, cache = defaultFileCache) {
 }
 
 /** Create an agent definition (name + AGENTS.md). */
-export function createAgent(projects, projectId, { name, description, body, tools }, cache = defaultFileCache) {
+export function createAgent(projects, projectId, { name, description, body, tools }, cache = new FileCache()) {
   if (!projectId || !projects) throw new Error("project is required");
   const p = projects.get(projectId);
   if (!p) throw new Error(`Project not found: ${projectId}`);
@@ -51,7 +51,7 @@ export function deleteAgent(projects, projectId, name) {
 }
 
 /** Load one agent: instructions (body) + tool whitelist. */
-export function loadAgent(projects, projectId, name, cache = defaultFileCache) {
+export function loadAgent(projects, projectId, name, cache = new FileCache()) {
   if (!projectId || !projects || name === "default") return null; // default = unrestricted
   const f = join(projects.dir, projectId, "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
   const content = cache.read(f);
@@ -63,7 +63,7 @@ export function loadAgent(projects, projectId, name, cache = defaultFileCache) {
 
 /** Plugin: agent instruction injection (stacked on project AGENTS.md). */
 export function installAgents(ctx) {
-  const cache = ctx.get("fileCache") ?? defaultFileCache;
+  const cache = ctx.get("fileCache") ?? new FileCache();
   ctx.on("system-prompt/assemble", async (base, next) => {
     const session = ctx.get("sessionScope")?.getStore();
     const agentName = session?.binding?.agent;

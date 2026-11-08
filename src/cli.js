@@ -52,7 +52,12 @@ const task = args.filter((a) => !a.startsWith("--") && !VALUE_FLAGS.includes(arg
 
 // Web mode shares a mutable approval ref with the approval guard (approve toggle).
 const approval = { current: has("--yes") || process.env.CW_AUTO_APPROVE === "true" };
-const { ctx, store, dispose } = await bootProfile(join(root, "profiles", "personal.json"), {
+// --profile is a profile FILE name under profiles/ (e.g. --profile personal.json);
+// it must exist — a typo fails loud instead of silently booting personal.
+const profileFile = val("--profile") ?? "personal.json";
+const profilePath = join(root, "profiles", profileFile);
+if (!existsSync(profilePath)) throw new Error(`Profile not found: profiles/${profileFile} (cwd profiles/)`);
+const { ctx, store, dispose } = await bootProfile(profilePath, {
   workspace: val("--workspace") ?? process.env.CW_WORKSPACE,
   autoApprove: approval,
   mock: has("--mock"),

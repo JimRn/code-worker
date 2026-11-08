@@ -24,6 +24,8 @@ export class Context {
     return dispose;
   }
   get(key) { return this.services.get(key); }
+  /** Internal escape hatch: the raw service behind a capability view. */
+  raw(key) { return this._raw.get(key) ?? this.services.get(key); }
   /** Internal-only: underlying service instance bypassing the capability view.
    * For plugin apply-time wiring (e.g. reading model-config inputs); consumers
    * must use get()/require(). */

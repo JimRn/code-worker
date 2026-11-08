@@ -3,13 +3,13 @@
 // (name, description) + body; extra files under the skill dir are resources.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { defaultFileCache } from "./file-cache.js";
+import { FileCache } from "./file-cache.js";
 import { isInBlockedDir } from "./policy.js";
 import { parseFrontmatter } from "./frontmatter.js";
 export { parseFrontmatter }; // back-compat re-export (tests import from here)
 
 /** L1 index: [{name, description}] for every skill in the project. */
-export function skillIndex(projects, projectId, cache = defaultFileCache) {
+export function skillIndex(projects, projectId, cache = new FileCache()) {
   if (!projectId || !projects) return [];
   const dir = join(projects.dir, projectId, "skills");
   if (!existsSync(dir)) return [];
@@ -47,7 +47,7 @@ export function loadSkill(projects, projectId, name, resource) {
 
 /** Plugin: L1 index injection + skill_load tool. */
 export function installSkills(ctx) {
-  const cache = ctx.get("fileCache") ?? defaultFileCache;
+  const cache = ctx.get("fileCache") ?? new FileCache();
   ctx.on("system-prompt/assemble", async (base, next) => {
     const session = ctx.get("sessionScope")?.getStore();
     const index = skillIndex(ctx.get("projects"), session?.binding?.projectId, cache);
