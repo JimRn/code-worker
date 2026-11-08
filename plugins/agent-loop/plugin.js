@@ -3,7 +3,7 @@ export const plugin = { name: "agent-loop", provides: "agentLoop", deps: ["tools
   configSchema: { properties: { maxSteps: true, toolResultMaxBytes: true } }, apply(ctx, env) {
   const pc = env.pluginConfig ?? {};
   ctx.provide("agentLoop", new AgentLoop(ctx, {
-    maxSteps: pc.maxSteps ?? env.maxSteps, toolResultMaxBytes: pc.toolResultMaxBytes ?? env.toolResultMaxBytes,
+    maxSteps: pc.maxSteps, toolResultMaxBytes: pc.toolResultMaxBytes,
     modelConfig: ctx.require("modelConfig"),
   }));
 } };

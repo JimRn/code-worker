@@ -28,22 +28,28 @@
   ],
   "config": {
     "workspace": ".",
-    "maxSteps": 8,
-    "toolResultMaxBytes": 20000,
-    "guardedTools": [
-      "write_file",
-      "bash",
-      "report_write",
-      "skill_load",
-      "terminal_open",
-      "terminal_send",
-      "terminal_read",
-      "terminal_kill"
-    ],
-    "compaction": {
-      "maxContextChars": 60000,
-      "pruneBytes": 2000,
-      "keepRecent": 4
+    "plugins": {
+      "agent-loop": {
+        "maxSteps": 8,
+        "toolResultMaxBytes": 20000
+      },
+      "compaction": {
+        "maxContextChars": 60000,
+        "pruneBytes": 2000,
+        "keepRecent": 4
+      },
+      "guard-approval": {
+        "guardedTools": [
+          "write_file",
+          "bash",
+          "report_write",
+          "skill_load",
+          "terminal_open",
+          "terminal_send",
+          "terminal_read",
+          "terminal_kill"
+        ]
+      }
     }
   }
 }
