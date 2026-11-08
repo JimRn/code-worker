@@ -1,5 +1,6 @@
 // Mini Cordis: Context = service repository + typed events + reversible effects.
 // Mode contract: emit (observe) | waterfall (around, must next()) | serial (ordered, no next)
+import { shouldWrap, wrapService } from "./service-definitions.js";
 export class Context {
   constructor() {
     this.services = new Map();
@@ -7,10 +8,11 @@ export class Context {
     this.effects = []; // disposers, LIFO on dispose
     this.disposed = false;
   }
-  /** Register service under stable key; returns disposer (reversible effect). */
+  /** Register service under stable key; returns disposer (reversible effect).
+   * Known services are stored behind their capability view (service-definitions). */
   provide(key, service) {
     const prev = this.services.get(key);
-    this.services.set(key, service);
+    this.services.set(key, shouldWrap(key, service) ? wrapService(key, service) : service);
     const dispose = () => {
       if (prev) this.services.set(key, prev);
       else this.services.delete(key);
@@ -31,10 +33,13 @@ export class Context {
     this.effects.push(dispose);
     return dispose;
   }
-  /** Subscribe. mode: 'emit'|'waterfall'|'serial' (default emit). @returns disposer */
-  on(event, fn, mode = "emit") {
+  /** Subscribe. mode: 'emit'|'waterfall'|'serial' (default emit).
+   * opts.priority (default 0): waterfall listeners run higher-first; ties keep
+   * registration order (stable). Guards declare high priority so profile
+   * order cannot silently change enforcement semantics. @returns disposer */
+  on(event, fn, mode = "emit", opts = {}) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);
-    const entry = { fn, mode };
+    const entry = { fn, mode, priority: opts.priority ?? 0 };
     this.listeners.get(event).push(entry);
     return this.effect(() => () => {
       const arr = this.listeners.get(event);
@@ -47,9 +52,12 @@ export class Context {
       if (mode === "emit") await fn(payload);
     }
   }
-  /** Waterfall: listeners receive (value, next); must call next() to delegate. */
+  /** Waterfall: listeners receive (value, next); must call next() to delegate.
+   * Higher priority runs first (outermost); stable within a priority tier. */
   async waterfall(event, value) {
-    const list = [...(this.listeners.get(event) ?? [])].filter((l) => l.mode === "waterfall");
+    const list = [...(this.listeners.get(event) ?? [])]
+      .filter((l) => l.mode === "waterfall")
+      .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
     const run = async (i, v) => {
       if (i >= list.length) return v;
       const next = async (nv = v) => run(i + 1, nv);

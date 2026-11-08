@@ -4,19 +4,19 @@
 // restricts which tools the session may call.
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cachedRead } from "./file-cache.js";
-import { parseFrontmatter } from "./skills.js";
+import { defaultFileCache } from "./file-cache.js";
+import { parseFrontmatter } from "./frontmatter.js";
 import { sessionScope } from "./session.js";
 
 /** List agents of a project: [{name, description}]. */
-export function agentList(projects, projectId) {
+export function agentList(projects, projectId, cache = defaultFileCache) {
   if (!projectId || !projects) return [];
   const dir = join(projects.dir, projectId, "agents");
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const content = cachedRead(join(dir, d.name, "AGENTS.md"));
+      const content = cache.read(join(dir, d.name, "AGENTS.md"));
       if (!content) return null;
       const { meta } = parseFrontmatter(content);
       return { name: meta.name || d.name, description: meta.description || "" };
@@ -25,7 +25,7 @@ export function agentList(projects, projectId) {
 }
 
 /** Create an agent definition (name + AGENTS.md). */
-export function createAgent(projects, projectId, { name, description, body, tools }) {
+export function createAgent(projects, projectId, { name, description, body, tools }, cache = defaultFileCache) {
   if (!projectId || !projects) throw new Error("project is required");
   const p = projects.get(projectId);
   if (!p) throw new Error(`Project not found: ${projectId}`);
@@ -35,7 +35,7 @@ export function createAgent(projects, projectId, { name, description, body, tool
   const dir = join(p.dir, "agents", safe);
   mkdirSync(dir, { recursive: true }); // upsert: selecting an existing folder edits it
   const fm = `---\nname: ${safe}\ndescription: ${description.trim()}${tools?.length ? `\ntools: ${tools.join(", ")}` : ""}\n---\n`;
-  const existing = cachedRead(join(dir, "AGENTS.md"));
+  const existing = cache.read(join(dir, "AGENTS.md"));
   // Upsert: keep existing body when the dialog left it blank (folder-preload case).
   const finalBody = body?.trim() || (existing ? parseFrontmatter(existing).body : "You are a specialist agent.");
   writeFileSync(join(dir, "AGENTS.md"), fm + finalBody);
@@ -52,10 +52,10 @@ export function deleteAgent(projects, projectId, name) {
 }
 
 /** Load one agent: instructions (body) + tool whitelist. */
-export function loadAgent(projects, projectId, name) {
+export function loadAgent(projects, projectId, name, cache = defaultFileCache) {
   if (!projectId || !projects || name === "default") return null; // default = unrestricted
   const f = join(projects.dir, projectId, "agents", String(name).replace(/[^\w.\-]/g, "_"), "AGENTS.md");
-  const content = cachedRead(f);
+  const content = cache.read(f);
   if (!content) return null;
   const { meta, body } = parseFrontmatter(content);
   const tools = meta.tools ? meta.tools.split(",").map((t) => t.trim()).filter(Boolean) : null;
@@ -64,11 +64,12 @@ export function loadAgent(projects, projectId, name) {
 
 /** Plugin: agent instruction injection (stacked on project AGENTS.md). */
 export function installAgents(ctx) {
+  const cache = ctx.get("fileCache") ?? defaultFileCache;
   ctx.on("system-prompt/assemble", async (base, next) => {
     const session = sessionScope.getStore();
     const agentName = session?.binding?.agent;
     if (!agentName) return next(base);
-    const agent = loadAgent(ctx.get("projects"), session.binding.projectId, agentName);
+    const agent = loadAgent(ctx.get("projects"), session.binding.projectId, agentName, cache);
     if (!agent) return next(base);
     return next(`${base}\n\n## Agent: ${agent.name}\n${agent.instructions}`);
   }, "waterfall");
@@ -80,11 +81,11 @@ export function installAgents(ctx) {
   ctx.on("tools/pre-execute", async (req, next) => {
     const binding = req.binding ?? sessionScope.getStore()?.binding ?? null;
     if (!binding?.agent || binding.agent === "default") return next(req); // default agent: unrestricted
-    const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent);
+    const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent, cache);
     if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }
     if (agent.tools && !agent.tools.includes(req.name)) {
       req.denied = `tool ${req.name} not in agent ${agent.name} whitelist`;
     }
     return next(req);
-  }, "waterfall");
+  }, "waterfall", { priority: 10 });
 }

@@ -13,7 +13,7 @@
 | `core/agent-loop` turn/step | `src/agent-loop.js`：turn/start→pre-step→bind→commit→freeze→tools→step/end→turn/end；失败记 `assistant/attempt` |
 | fs/shell 能力缝（三角色） | `src/fs.js`、`src/shell.js`：Definition/Provider/Consumer 分离；`ctx.fs`/`ctx.shell` + `tool-fs`/`tool-bash`；workspace confinement |
 | guard 审批 | `src/tools.js:installApprovalGuard`：`write_file`/`bash` 经 executor 拒绝（非 schema 过滤） |
-| profile + bundle 组合 | `profiles/personal.json` + `src/profile.js` 有序装配；入口 `src/cli.js`（类比 `dsh --profile personal`） |
+| profile + bundle 组合 | `profiles/personal.json` + `src/plugin-loader.js` 自动发现 `plugins/<name>/plugin.js`；入口 `src/cli.js`（类比 `dsh --profile personal`） |
 
 ## 运行
 
@@ -37,6 +37,10 @@ npm test   # node --test，覆盖 waterfall/可逆 effect/端到端日志/confin
 
 ## 扩展（按蓝图）
 
+- 新插件：新建 `plugins/<name>/plugin.js`（导出 `{name, deps, configSchema?, apply(ctx, env)}`），在 `profiles/personal.json` 的 `plugins` 数组加一行；`src/plugin-loader.js` 自动发现，不改任何核心文件。插件配置放 `config.plugins.<name>`，`profile.js` 按 `configSchema` 校验（未知 key 直接报错）；功能事件（如 `compaction/summary`）由插件 `store.registerEventType()` 注册，核心只认自己的事件。
+- 服务能力面：每个 ctx 服务只暴露 `src/service-definitions.js` 声明的成员（`Context.provide` 自动包一层只读视图），换 Provider 不会泄漏内部字段。
+- Waterfall 优先级：`ctx.on(event, fn, "waterfall", {priority})`，高优先级先跑（审批守卫 20 > agent 白名单 10 > 普通 0），改 profile 顺序不再静默改执法语义。
+- 缓存/作用域按实例：`FileCache` 是 ctx 服务（`plugins/file-cache`），`LocalFs`/`LocalShell` 各持自己的 `AsyncLocalStorage`，同进程多 boot 不串扰。
 - 新工具：`ctx.tools.register({name,description,schema,execute})`，后端经 `ctx.fs`/`ctx.shell` 缝。
 - 拦截：`ctx.on("agent/pre-step"|"tools/pre-execute", fn, "waterfall")`（必须 `next()`）。
 - 新 Provider：`ctx.get("llm").registerAdapter(name, adapter)`，loop 不变。
@@ -93,5 +97,5 @@ node src/cli.js --web --host 127.0.0.1            # 仅本机
 
 ## 已知上限（对照 DeepSeek 架构）
 
-- 插件注册表在代码内（`src/plugins.js`），加新插件需改注册表 + `profiles/personal.json` 两处；未达到 DSH 的外部插件目录 + patch 分发模型。
+- 插件已目录化（`plugins/<name>/plugin.js` + loader 自动发现），但尚未达到 DSH 的外部插件 patch 分发模型（插件仍在仓库内，未支持独立发布/版本）；
 - `binding.js` 的校验与 `file-cache.js` 的 mtime 缓存是直接 import 的 util 层，未走 ctx 服务键（访问路径已知）。

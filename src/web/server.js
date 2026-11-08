@@ -6,7 +6,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
-import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes } from "./routes.js";
+import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes } from "./routes.js";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -50,7 +50,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   // Route registry: groups register first, core dispatches by match.
   const routes = [];
   const app = {
-    ctx, sendJson, readBody, approval,
+    ctx, sendJson, readBody, approval, store, loop, running, sseClients,
     route(method, pattern, handler) {
       routes.push({ method, match: typeof pattern === "string" ? (p) => p === pattern : (p) => { const m = p.match(pattern); return m ? m : null; }, handler, isRegex: pattern instanceof RegExp });
     },
@@ -59,6 +59,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   registerSettingsRoutes(app);
   registerWorkspaceRoutes(app);
   registerApprovalRoutes(app);
+  registerSessionRoutes(app);
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>
@@ -87,105 +88,6 @@ export function createWebServer({ ctx, store, approval, token }) {
         if (r.method !== req.method) continue;
         const m = r.match(url.pathname);
         if (m) return r.handler(req, res, m === true ? null : m, url);
-      }
-      // --- session RPC + SSE + turn (core) ---
-      if (url.pathname === "/api/sessions" && req.method === "GET") {
-        const projectId = url.searchParams.get("projectId");
-        const agentName = url.searchParams.get("agent");
-        // Lightweight list: meta.json + tail title only, never full event load.
-        return sendJson(res, 200, {
-          sessions: store.listLight()
-            .filter((s) => !projectId || s.projectId === projectId)
-            .filter((s) => !agentName || s.agent === agentName),
-        });
-      }
-      if (url.pathname === "/api/sessions" && req.method === "POST") {
-        const body = await readBody(req).catch(() => ({}));
-        if (!body.projectId) return sendJson(res, 400, { error: "projectId is required (sessions must be project-scoped)" });
-        if (!body.agent) return sendJson(res, 400, { error: "agent is required (every session must bind an agent)" });
-        const binding = { projectId: body.projectId, repo: body.repo, agent: body.agent };
-        const { validateBinding } = await import("../binding.js");
-        const v = validateBinding(ctx.get("projects"), binding);
-        if (!v.ok) return sendJson(res, 400, { error: v.error });
-        const s = store.create(binding);
-        return sendJson(res, 201, { id: s.id });
-      }
-      // trash: list/restore/purge per project
-      const tm = url.pathname.match(/^\/api\/projects\/([\w-]+)\/trash(?:\/([\w-]+)\/(restore|purge))?$/);
-      if (tm) {
-        if (!tm[2] && req.method === "GET") return sendJson(res, 200, { trash: store.listTrash(tm[1]) });
-        if (tm[3] === "restore" && req.method === "POST") {
-          try { store.restore(tm[1], tm[2]); return sendJson(res, 200, { ok: true }); }
-          catch (err) { return sendJson(res, 404, { error: err.message }); }
-        }
-        if (tm[3] === "purge" && req.method === "DELETE") {
-          try {
-            const { rmSync: rm } = await import("node:fs");
-            const { join: j2 } = await import("node:path");
-            rm(j2(store.projectsDir, tm[1], "trash", tm[2]), { recursive: true, force: true });
-            return sendJson(res, 200, { ok: true });
-          } catch (err) { return sendJson(res, 500, { error: err.message }); }
-        }
-      }
-      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(stream|turn|compact|export|cancel))?$/);
-      if (m && req.method === "DELETE" && !m[2]) {
-        try { store.softDelete(m[1]); return sendJson(res, 200, { ok: true }); }
-        catch (err) { return sendJson(res, 404, { error: err.message }); }
-      }
-      if (m) {
-        const session = store.open(m[1]);
-        if (!m[2] && req.method === "GET") {
-          return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
-        }
-        if (m[3] === "export" && req.method === "GET") {
-          res.writeHead(200, { "content-type": "application/x-ndjson", "content-disposition": `attachment; filename="session-${session.id}.jsonl"` });
-          return res.end(session.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
-        }
-        if (m[3] === "stream" && req.method === "GET") {
-          res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
-          res.flushHeaders(); // open immediately so the client flips to "connected"
-          for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
-          const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
-          if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
-          sseClients.get(session.id).add(res);
-          req.on("close", () => {
-            off();
-            sseClients.get(session.id)?.delete(res);
-            // Disconnect: auto-deny only when NO tab remains for this session.
-            if ((sseClients.get(session.id)?.size ?? 0) === 0) {
-              for (const [callId, entry] of approval.pending ?? []) {
-                if (entry.req.sessionId === session.id) entry.resolve(false);
-              }
-            }
-          });
-          return;
-        }
-        if (m[3] === "cancel" && req.method === "POST") {
-          return sendJson(res, 200, { cancelled: await loop.cancel(session.id) });
-        }
-        if (m[3] === "compact" && req.method === "POST") {
-          try {
-            const text = await ctx.require("compaction").compact(session);
-            return sendJson(res, 200, { compacted: Boolean(text), summary: text ?? undefined });
-          } catch (err) {
-            return sendJson(res, 500, { error: err.message });
-          }
-        }
-        if (m[3] === "turn" && req.method === "POST") {
-          const body = await readBody(req);
-          if (!body.text) return sendJson(res, 400, { error: "text is required" });
-          if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
-          // Per-turn scope: save/restore shared approval state around this turn.
-          const prevApproval = { current: approval.current, mode: approval.mode };
-          approval.current = Boolean(body.autoApprove);
-          if (body.approvalMode) approval.mode = body.approvalMode;
-          running.add(session.id);
-          sendJson(res, 202, { accepted: true });
-          loop.runTurn(session, body.text, { model: body.model })
-            .catch((e) => console.error("[web] turn failed:", e.message))
-            .finally(() => { running.delete(session.id); approval.current = prevApproval.current; approval.mode = prevApproval.mode; });
-          return;
-        }
       }
       res.writeHead(404); res.end("not found");
     } catch (err) {

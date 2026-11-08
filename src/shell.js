@@ -11,11 +11,12 @@ export class ShellService {
 export class LocalShell extends ShellService {
   constructor(workspace, { timeoutMs = 30000, subprocess } = {}) {
     super(); this.defaultWorkspace = workspace; this.timeoutMs = timeoutMs;
+    this.scope = new AsyncLocalStorage();
     this.subprocess = subprocess ?? new LocalSubprocess({ timeoutMs });
   }
-  get workspace() { return shellScope.getStore() ?? this.defaultWorkspace; }
+  get workspace() { return this.scope.getStore() ?? this.defaultWorkspace; }
   set workspace(dir) { this.defaultWorkspace = dir; } // boot-time default only
-  withWorkspace(dir, fn) { return shellScope.run(dir, fn); }
+  withWorkspace(dir, fn) { return this.scope.run(dir, fn); }
   /** Resolve a Spec explicitly (no hidden defaults in run). */
   resolveSpec(request) {
     if (!request?.command) throw new Error("bash: command is required");

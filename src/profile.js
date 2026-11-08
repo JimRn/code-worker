@@ -1,41 +1,38 @@
-// Profile loader: dispatch profile.plugins in declared order through the
-// plugin registry (src/plugins.js). The plugins array is the composition —
-// removing/adding a line changes the tree without editing this file.
+// Profile loader: dispatch profile.plugins in declared order, loading each
+// plugin from plugins/<name>/plugin.js (auto-discovery, no static registry).
+// The plugins array is the composition — removing/adding a line changes the
+// tree without editing this file or any core module.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Context } from "./context.js";
-import { PLUGINS } from "./plugins.js";
-import { SettingsStore } from "./web/settings.js";
+import { DEFAULT_PLUGINS_DIR, listPluginNames, loadPlugin } from "./plugin-loader.js";
 
-export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl, home } = {}) {
+/** Per-plugin config: profile.config.plugins[name] is validated against the
+ * plugin's declared configSchema (unknown keys fail loud, named). */
+export function validatePluginConfig(name, plugin, config) {
+  const schema = plugin.configSchema;
+  if (config === undefined || config === null) return {};
+  if (!schema) throw new Error(`Plugin ${name} declares no configSchema but profile sets config.plugins.${name}`);
+  const allowed = new Set(Object.keys(schema.properties ?? {}));
+  const unknown = Object.keys(config).filter((k) => !allowed.has(k));
+  if (unknown.length) throw new Error(`Plugin ${name}: unknown config key(s) ${unknown.join(", ")} (allowed: ${[...allowed].join(", ") || "(none)"})`);
+  return config;
+}
+
+export async function bootProfile(profilePath, { workspace, autoApprove = false, mock = false, model, apiKey, baseUrl, home, pluginsDir = DEFAULT_PLUGINS_DIR } = {}) {
   const profile = JSON.parse(readFileSync(profilePath, "utf8"));
   if (home) profile.home = home; // tests point home at a temp dir
   const cfg = { ...profile.config, workspace: workspace ?? profile.config?.workspace ?? process.cwd() };
   const ctx = new Context();
 
-  // Consistent env family: OPENAI_* wins as a set, else DEEPSEEK_* (no cross-mixing).
-  const envFamily = process.env.OPENAI_API_KEY || process.env.OPENAI_BASE_URL || process.env.OPENAI_MODEL ? "OPENAI" : "DEEPSEEK";
-  const env = (n) => process.env[`${envFamily}_${n}`];
-  const modelConfig = {
-    apiKey: apiKey ?? env("API_KEY") ?? undefined,
-    baseUrl: baseUrl ?? env("BASE_URL") ?? undefined,
-    model: model ?? env("MODEL") ?? undefined,
-  };
-
-  // Settings constructed once, up front; seeds model config fallbacks.
-  const settings = new SettingsStore(profile.home ?? ".code-worker");
-  modelConfig.apiKey ??= settings.getApiKey();
-  modelConfig.baseUrl ??= settings.getConfig().baseUrl;
-  modelConfig.model ??= settings.getConfig().model;
-  modelConfig.reasoningEffort ??= settings.getConfig().reasoningEffort;
-  modelConfig.contextWindow ??= settings.getConfig().contextWindow;
-
+  // Raw inputs only — each plugin assembles its own services/config from
+  // these (e.g. model-config plugin builds ctx "modelConfig").
   const sharedEnv = {
     home: profile.home ?? ".code-worker",
     projectsDir: join(profile.home ?? ".code-worker", "projects"),
     workspace: cfg.workspace,
     mock,
-    modelConfig,
+    modelOverrides: { apiKey, baseUrl, model },
     maxSteps: cfg.maxSteps,
     toolResultMaxBytes: cfg.toolResultMaxBytes,
     compaction: cfg.compaction,
@@ -45,9 +42,8 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     approvalTimeoutMs: cfg.approvalTimeoutMs ?? 30000,
   };
 
-  for (const name of profile.plugins ?? Object.keys(PLUGINS)) {
-    const plugin = PLUGINS[name];
-    if (!plugin) throw new Error(`Unknown plugin in profile: ${name}`);
+  for (const name of profile.plugins ?? listPluginNames(pluginsDir)) {
+    const plugin = await loadPlugin(name, pluginsDir);
     for (const dep of plugin.deps ?? []) {
       const optional = dep.endsWith("?");
       const key = optional ? dep.slice(0, -1) : dep;
@@ -56,7 +52,9 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
         else throw new Error(`Plugin ${name} requires ctx.${dep} (missing: check profile order)`);
       }
     }
-    await plugin.apply(ctx, sharedEnv);
+    // Per-plugin config travels on env.pluginConfig for this plugin only.
+    const pluginConfig = validatePluginConfig(name, plugin, profile.config?.plugins?.[name]);
+    await plugin.apply(ctx, { ...sharedEnv, pluginConfig });
   }
 
   return { ctx, profile, store: ctx.require("sessions"), dispose: () => ctx.dispose() };

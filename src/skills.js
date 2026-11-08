@@ -3,29 +3,21 @@
 // (name, description) + body; extra files under the skill dir are resources.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { cachedRead } from "./file-cache.js";
+import { defaultFileCache } from "./file-cache.js";
 import { sessionScope } from "./session.js";
-
-export function parseFrontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n?/);
-  if (!m) return { meta: {}, body: text };
-  const meta = {};
-  for (const line of m[1].split("\n")) {
-    const kv = line.match(/^(\w+):\s*(.*)$/);
-    if (kv) meta[kv[1]] = kv[2].trim();
-  }
-  return { meta, body: text.slice(m[0].length) };
-}
+import { isInBlockedDir } from "./policy.js";
+import { parseFrontmatter } from "./frontmatter.js";
+export { parseFrontmatter }; // back-compat re-export (tests import from here)
 
 /** L1 index: [{name, description}] for every skill in the project. */
-export function skillIndex(projects, projectId) {
+export function skillIndex(projects, projectId, cache = defaultFileCache) {
   if (!projectId || !projects) return [];
   const dir = join(projects.dir, projectId, "skills");
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => {
-      const content = cachedRead(join(dir, d.name, "SKILL.md"));
+      const content = cache.read(join(dir, d.name, "SKILL.md"));
       if (!content) return null;
       const { meta } = parseFrontmatter(content);
       return { name: meta.name || d.name, description: meta.description || "" };
@@ -49,16 +41,17 @@ export function loadSkill(projects, projectId, name, resource) {
   rf = join(realpathSync(rf), ...rest);
   const base = realpathSync(dir);
   if (rf !== base && !rf.startsWith(base + sep)) throw new Error(`Skill resource not found: ${resource}`);
-  if (rf.split(sep).some((s) => [".ssh", ".aws", ".gnupg", ".dsh"].includes(s))) throw new Error("Skill resource in sensitive directory");
+  if (isInBlockedDir(rf, sep)) throw new Error("Skill resource in sensitive directory");
   if (!statSync(rf).isFile() || statSync(rf).size > 200 * 1024) throw new Error("Skill resource too large or missing");
   return `${body}\n\n--- ${resource} ---\n${readFileSync(rf, "utf8")}`;
 }
 
 /** Plugin: L1 index injection + skill_load tool. */
 export function installSkills(ctx) {
+  const cache = ctx.get("fileCache") ?? defaultFileCache;
   ctx.on("system-prompt/assemble", async (base, next) => {
     const session = sessionScope.getStore();
-    const index = skillIndex(ctx.get("projects"), session?.binding?.projectId);
+    const index = skillIndex(ctx.get("projects"), session?.binding?.projectId, cache);
     if (!index.length) return next(base);
     const lines = index.map((s) => `- ${s.name}: ${s.description}`).join("\n");
     return next(`${base}\n\n## Available skills (load with skill_load when needed)\n${lines}`);

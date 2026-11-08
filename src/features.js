@@ -40,6 +40,23 @@ export class CompactionService {
   }
 }
 
+/** Compaction: eventized — prunes + auto-summarizes through agent/pre-step.
+ * The loop sends pre.messages as returned by the waterfall; this listener
+ * rewrites them (prune, then maybe compact and re-derive). */
+export function installCompaction(ctx, svc) {
+  ctx.on("agent/pre-step", async (req, next) => {
+    const session = req.session ?? sessionScope.getStore();
+    let messages = svc.prune(req.messages ?? []);
+    if (session) {
+      const toolsChars = ctx.get("tools") ? JSON.stringify(ctx.require("tools").schemas()).length : 0;
+      const contextWindow = ctx.get("modelConfig")?.contextWindow;
+      const didCompact = await svc.maybeCompact(session, messages, req.systemChars ?? 0, toolsChars, contextWindow);
+      if (didCompact) messages = svc.prune(session.deriveMessages());
+    }
+    return next({ ...req, messages });
+  }, "waterfall");
+}
+
 /** Project isolation plugin: per-turn fs/shell roots + AGENTS.md injection. */
 export function installProjectIsolation(ctx) {
   // Inject project instructions into the system prompt every turn.
@@ -67,7 +84,7 @@ export function installTitleGenerator(ctx) {
     if (!firstUser) return;
     try {
       const bound = ctx.require("llm").prepareCall({
-        provider: "openai-compatible",
+        provider: ctx.get("modelConfig")?.provider ?? "openai-compatible",
         messages: [
           { role: "system", content: "Reply with a short session title (max 8 words, no quotes, same language as the user). Title only." },
           { role: "user", content: firstUser.data.text },

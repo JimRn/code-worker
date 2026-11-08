@@ -4,6 +4,7 @@
   "home": ".code-worker",
   "plugins": [
     "session",
+    "file-cache",
     "tools",
     "fs-local",
     "tool-fs",
@@ -14,7 +15,10 @@
     "skills",
     "agents",
     "outputs",
+    "terminals",
+    "tool-terminal",
     "settings",
+    "model-config",
     "llm",
     "compaction",
     "project-isolation",
@@ -30,7 +34,9 @@
       "write_file",
       "bash",
       "report_write",
-      "skill_load"
+      "skill_load",
+      "terminal_open",
+      "terminal_send"
     ],
     "compaction": {
       "maxContextChars": 60000,

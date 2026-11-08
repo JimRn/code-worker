@@ -24,7 +24,7 @@ export function estimateChars(messages) {
 export async function summarizeMessages(ctx, messages, { prompt = "Summarize this conversation for continued work. Keep facts, decisions, file paths, and open tasks. Be concise." } = {}) {
   const transcript = messages.map((m) => `${m.role}: ${m.content}`).join("\n").slice(0, 20000);
   const bound = ctx.require("llm").prepareCall({
-    provider: "openai-compatible",
+    provider: ctx.get("modelConfig")?.provider ?? "openai-compatible",
     messages: [{ role: "system", content: prompt }, { role: "user", content: transcript }],
     tools: [],
   });

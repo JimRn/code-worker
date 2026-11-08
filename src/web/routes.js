@@ -1,8 +1,9 @@
 // Route groups extracted from web/server.js (server slimming):
 // projects, settings, workspace(+read/upload), approvals, export.
 // Each handler receives shared deps and returns void; server wires them in order.
-import { existsSync, readFileSync, writeFileSync, realpathSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, realpathSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { isInBlockedDir } from "../policy.js";
 
 export function registerProjectRoutes(app) {
   const { ctx, sendJson, readBody } = app;
@@ -46,13 +47,13 @@ export function registerProjectRoutes(app) {
   app.route("GET", /^\/api\/projects\/([\w-]+)\/agents$/, async (req, res, m) => {
     if (!projects().get(m[1])) return sendJson(res, 404, { error: "project not found" });
     const { agentList } = await import("../agents.js");
-    sendJson(res, 200, { agents: agentList(projects(), m[1]) });
+    sendJson(res, 200, { agents: agentList(projects(), m[1], ctx.get("fileCache")) });
   });
   app.route("POST", /^\/api\/projects\/([\w-]+)\/agents$/, async (req, res, m) => {
     const body = await readBody(req);
     try {
       const { createAgent } = await import("../agents.js");
-      sendJson(res, 201, createAgent(projects(), m[1], body));
+      sendJson(res, 201, createAgent(projects(), m[1], body, ctx.get("fileCache")));
     } catch (err) { sendJson(res, 400, { error: err.message }); }
   });
   app.route("GET", /^\/api\/projects\/([\w-]+)\/agent-folders$/, async (req, res, m) => {
@@ -139,7 +140,6 @@ export function registerSettingsRoutes(app) {
 export function registerWorkspaceRoutes(app) {
   const { ctx, sendJson, readBody } = app;
   const bootWorkspace = () => ctx.require("fs").root;
-  const BLOCKED = new Set([".ssh", ".aws", ".gnupg", ".dsh"]);
   app.route("GET", "/api/workspace/read", async (req, res, m, url) => {
     const projectId = url.searchParams.get("projectId");
     const sub = url.searchParams.get("path") || "";
@@ -193,7 +193,7 @@ export function registerWorkspaceRoutes(app) {
     const { homedir, tmpdir } = await import("node:os");
     const allowed = [bootWorkspace(), homedir(), tmpdir()].some((r) => abs === r || abs.startsWith(r + sep));
     if (!allowed) return sendJson(res, 403, { error: "workspace outside allowed roots (boot workspace / home)" });
-    if (abs.split(sep).some((seg) => BLOCKED.has(seg))) return sendJson(res, 403, { error: "workspace in a sensitive directory" });
+    if (isInBlockedDir(abs, sep)) return sendJson(res, 403, { error: "workspace in a sensitive directory" });
     fs.root = abs;
     shell.workspace = abs;
     ctx.get("settings").setWorkspace(abs);
@@ -219,5 +219,107 @@ export function registerApprovalRoutes(app) {
     if (body.sessionId && entry.req.sessionId !== body.sessionId) return sendJson(res, 403, { error: "approval belongs to a different session" });
     entry.resolve(Boolean(body.approved));
     sendJson(res, 200, { ok: true });
+  });
+}
+
+/** Session routes: CRUD + SSE stream + turn dispatch + trash. Transport
+ * (static/auth/listen) stays in server.js; this group only declares API. */
+export function registerSessionRoutes(app) {
+  const { ctx, sendJson, readBody, approval, store, loop, running, sseClients } = app;
+
+  app.route("GET", "/api/sessions", async (req, res, m, url) => {
+    const projectId = url.searchParams.get("projectId");
+    const agentName = url.searchParams.get("agent");
+    return sendJson(res, 200, {
+      sessions: store.listLight()
+        .filter((s) => !projectId || s.projectId === projectId)
+        .filter((s) => !agentName || s.agent === agentName),
+    });
+  });
+
+  app.route("POST", "/api/sessions", async (req, res) => {
+    const body = await readBody(req).catch(() => ({}));
+    if (!body.projectId) return sendJson(res, 400, { error: "projectId is required (sessions must be project-scoped)" });
+    if (!body.agent) return sendJson(res, 400, { error: "agent is required (every session must bind an agent)" });
+    const binding = { projectId: body.projectId, repo: body.repo, agent: body.agent };
+    const { validateBinding } = await import("../binding.js");
+    const v = validateBinding(ctx.get("projects"), binding);
+    if (!v.ok) return sendJson(res, 400, { error: v.error });
+    const s = store.create(binding);
+    return sendJson(res, 201, { id: s.id });
+  });
+
+  // trash: list/restore/purge per project
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/trash$/, async (req, res, m) => sendJson(res, 200, { trash: store.listTrash(m[1]) }));
+  app.route("POST", /^\/api\/projects\/([\w-]+)\/trash\/([\w-]+)\/restore$/, async (req, res, m) => {
+    try { store.restore(m[1], m[2]); return sendJson(res, 200, { ok: true }); }
+    catch (err) { return sendJson(res, 404, { error: err.message }); }
+  });
+  app.route("DELETE", /^\/api\/projects\/([\w-]+)\/trash\/([\w-]+)\/purge$/, async (req, res, m) => {
+    try {
+      rmSync(join(store.projectsDir, m[1], "trash", m[2]), { recursive: true, force: true });
+      return sendJson(res, 200, { ok: true });
+    } catch (err) { return sendJson(res, 500, { error: err.message }); }
+  });
+
+  app.route("DELETE", /^\/api\/sessions\/([\w-]+)$/, async (req, res, m) => {
+    try { store.softDelete(m[1]); return sendJson(res, 200, { ok: true }); }
+    catch (err) { return sendJson(res, 404, { error: err.message }); }
+  });
+
+  app.route("GET", /^\/api\/sessions\/([\w-]+)$/, async (req, res, m) => {
+    const session = store.open(m[1]);
+    return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
+  });
+
+  app.route("GET", /^\/api\/sessions\/([\w-]+)\/export$/, async (req, res, m) => {
+    const session = store.open(m[1]);
+    res.writeHead(200, { "content-type": "application/x-ndjson", "content-disposition": `attachment; filename="session-${session.id}.jsonl"` });
+    return res.end(session.events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  });
+
+  app.route("GET", /^\/api\/sessions\/([\w-]+)\/stream$/, async (req, res, m) => {
+    const session = store.open(m[1]);
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    res.flushHeaders();
+    for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
+    const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
+    if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
+    sseClients.get(session.id).add(res);
+    req.on("close", () => {
+      off();
+      sseClients.get(session.id)?.delete(res);
+      if ((sseClients.get(session.id)?.size ?? 0) === 0) {
+        for (const [callId, entry] of approval.pending ?? []) {
+          if (entry.req.sessionId === session.id) entry.resolve(false);
+        }
+      }
+    });
+    return;
+  });
+
+  app.route("POST", /^\/api\/sessions\/([\w-]+)\/cancel$/, async (req, res, m) => sendJson(res, 200, { cancelled: await loop.cancel(m[1]) }));
+
+  app.route("POST", /^\/api\/sessions\/([\w-]+)\/compact$/, async (req, res, m) => {
+    try {
+      const text = await ctx.require("compaction").compact(store.open(m[1]));
+      return sendJson(res, 200, { compacted: Boolean(text), summary: text ?? undefined });
+    } catch (err) { return sendJson(res, 500, { error: err.message }); }
+  });
+
+  app.route("POST", /^\/api\/sessions\/([\w-]+)\/turn$/, async (req, res, m) => {
+    const session = store.open(m[1]);
+    const body = await readBody(req);
+    if (!body.text) return sendJson(res, 400, { error: "text is required" });
+    if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
+    const prevApproval = { current: approval.current, mode: approval.mode };
+    approval.current = Boolean(body.autoApprove);
+    if (body.approvalMode) approval.mode = body.approvalMode;
+    running.add(session.id);
+    sendJson(res, 202, { accepted: true });
+    loop.runTurn(session, body.text, { model: body.model })
+      .catch((e) => console.error("[web] turn failed:", e.message))
+      .finally(() => { running.delete(session.id); approval.current = prevApproval.current; approval.mode = prevApproval.mode; });
+    return;
   });
 }

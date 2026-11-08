@@ -1,19 +1,20 @@
 // AgentLoop: default driver. Turn = 0..N Steps; Step = 1 model request + its tools.
-// Vertical features live in plugins (compaction service, project isolation,
-// title generator); the loop only orchestrates Turn/Step via ctx services/events.
+// Vertical features live in plugins (compaction, project isolation, title
+// generator) and act through events — the loop never calls them directly.
+// Model/provider selection comes solely from ctx "modelConfig".
 import { sessionScope } from "./session.js";
 export class AgentLoop {
-  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, provider = "openai-compatible", model, config } = {}) {
+  constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, modelConfig, model } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
-    this.provider = provider; this.model = model; this.config = config; // mutable ref: Web settings live-update
+    this.modelConfig = modelConfig; this.model = model;
   }
-  currentModel() { return this.config?.model ?? this.model; }
+  get provider() { return this.modelConfig?.provider ?? "openai-compatible"; }
+  currentModel() { return this.modelConfig?.model ?? this.model; }
   async runTurn(session, userText, { onText, model, signal } = {}) {
     const ctx = this.ctx;
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
-    const compaction = ctx.get("compaction");
     const ctl = new AbortController();
-    AgentLoop.controllers.set(session.id, ctl);
+    this.controllers.set(session.id, ctl);
     const effectiveSignal = signal ?? ctl.signal;
     effectiveSignal.addEventListener("abort", () => ctl.abort());
     const isolate = ctx.get("isolate") ?? ((_s, fn) => fn());
@@ -30,14 +31,11 @@ export class AgentLoop {
       for (let step = 0; step <= this.maxSteps; step++) {
         // Final step (step == maxSteps) is text-only: summarize, never leave tools hanging.
         // agent/pre-step (waterfall): listeners may accept/rewrite/reject; reject closes turn w/o step.
-        const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
+        const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel }, session, systemChars: systemText.length });
         if (pre?.rejected) break;
-        let messages = compaction ? compaction.prune(pre.messages) : pre.messages;
-        if (compaction) {
-          const tools = ctx.require("tools").schemas();
-          await compaction.maybeCompact(session, messages, systemText.length, JSON.stringify(tools).length, this.config?.contextWindow);
-        }
-        messages = session.deriveMessages();
+        // Plugins (e.g. compaction) rewrite messages through this waterfall;
+        // the loop simply sends whatever comes back.
+        const messages = pre.messages;
         await session.append("step/start", { step });
         let result;
         try {
@@ -94,13 +92,13 @@ export class AgentLoop {
       await ctx.serial("turn/ended", { session, state: turnState });
       throw err;
     } finally {
-      AgentLoop.controllers.delete(session.id);
+      this.controllers.delete(session.id);
     }
   }
-  /** Cancel a running turn (AbortSignal wired through the LLM fetch). */
-  static controllers = new Map();
+  /** Cancel a running turn (AbortSignal wired through the LLM fetch). Per-instance, disposed with the loop. */
+  controllers = new Map();
   async cancel(sessionId) {
-    const ctl = AgentLoop.controllers.get(sessionId);
+    const ctl = this.controllers.get(sessionId);
     if (ctl) ctl.abort();
     return Boolean(ctl);
   }

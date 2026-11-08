@@ -71,5 +71,5 @@ export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file"
     }
     req.denied = `${req.name} requires approval (--yes / CW_AUTO_APPROVE=true / Web approve toggle)`;
     return next(req);
-  }, "waterfall");
+  }, "waterfall", { priority: 20 });
 }
