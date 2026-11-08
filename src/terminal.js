@@ -25,17 +25,17 @@ export class TerminalService {
     s.session.write(text + "\n");
     // Wait until output pauses (idle) or timeout.
     return new Promise((resolve) => {
-      const before = s.output.length;
-      const timer = setTimeout(() => resolve(s.output.slice(before)), 800);
+      const before = s.session.motd.length;
+      const timer = setTimeout(() => resolve(s.session.motd.slice(before)), 800);
       const check = setInterval(() => {
-        if (s.output.length !== before) { clearTimeout(timer); clearInterval(check); resolve(s.output.slice(before)); }
+        if (s.session.motd.length !== before) { clearTimeout(timer); clearInterval(check); resolve(s.session.motd.slice(before)); }
       }, 100);
       setTimeout(() => { clearInterval(check); }, 5000);
     });
   }
   read(id, owner) {
     const s = this.require(id, owner);
-    return s.output.slice(-8000);
+    return s.session.motd.slice(-8000); // live buffer (backend appends here)
   }
   /** Live subscription to PTY output (for WebSocket streaming). Returns a
    * real disposer that removes the listener (no leak on reconnect). */
