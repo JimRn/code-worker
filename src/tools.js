@@ -35,7 +35,7 @@ export class ToolRegistry {
       let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, session };
       req = await this.ctx.waterfall(EV.TOOLS_PRE_EXECUTE, req);
       delete req.session; // listeners may use it; tools never receive the live Session
-      if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
+      if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true, policy: req.policy ?? "unknown" }); continue; }
       let output;
       try { output = await this.ctx.waterfall(EV.TOOLS_EXECUTE, req); }
       catch (err) { output = `Error: ${err.message}`; }
@@ -74,10 +74,11 @@ export function installApprovalGuard(ctx, { autoApprove, guarded = ["write_file"
         ref.notify?.({ callId: req.callId, name: req.name, args: req.args, sessionId: req.sessionId });
       });
       ref.pending.delete(req.callId);
-      if (!decision) req.denied = `${req.name} denied by user`;
+      if (!decision) { req.denied = `${req.name} denied by user`; req.policy = "guard-approval"; }
       return next(req);
     }
     req.denied = `${req.name} requires approval (--yes / CW_AUTO_APPROVE=true / Web approve toggle)`;
+    req.policy = "guard-approval";
     return next(req);
   }, "waterfall", { priority: 20 });
 }

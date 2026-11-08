@@ -129,6 +129,13 @@ function renderEvent(ev) {
     if (block) {
       block.querySelector(".tb-out").textContent = ev.data.output;
       if (ev.data.isError) block.classList.add("error");
+      // Governance (监管): policy blocks are labeled with the policy name.
+      if (ev.data.policy) {
+        const g = document.createElement("div");
+        g.className = "tb-policy";
+        g.textContent = `监管：Block（${ev.data.policy}）`;
+        block.appendChild(g);
+      }
       return;
     }
     // fallback: standalone result
@@ -685,7 +692,7 @@ function showTraceDetail(ev, events) {
   const result = ev.type === "tool/result" ? ev : events.find((e, j) => j > events.indexOf(ev) && e.type === "tool/result" && e.data.callId === ev.data.callId);
   const dur = result ? result.ts - ev.ts : null;
   const tabs = {
-    overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div>`,
+    overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div><div class="td-kv"><span>监管</span><b>${result?.data.policy ? `Block（${result.data.policy}）` : "—"}</b></div>`,
     args: `<pre>${esc(JSON.stringify(callEv?.data.args ?? ev.data.args ?? {}, null, 2))}</pre>`,
     result: `<pre>${esc(result ? String(result.data.output ?? "") : "（无结果）")}</pre>`,
     schema: `<b>${esc(ev.data.name ?? "")}</b><pre>${esc(ev.data.name === "bash" ? "Execute a bash command: runs in the workspace cwd." : ev.data.name === "read_file" ? "Read a UTF-8 file inside the workspace." : ev.data.name === "write_file" ? "Write a UTF-8 file inside the workspace." : ev.data.name === "list_dir" ? "List a directory inside the workspace." : "Tool schema")}

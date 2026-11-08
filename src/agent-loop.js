@@ -70,7 +70,7 @@ export class AgentLoop {
           const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding });
           for (const r of results) {
             done.add(r.callId);
-            await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
+            await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false, policy: r.policy });
           }
         } finally {
           for (const tc of result.toolCalls) {

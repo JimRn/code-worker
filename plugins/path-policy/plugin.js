@@ -14,7 +14,7 @@ export const plugin = {
     // Tool-layer guard: scan string args for blocked path segments.
     ctx.on("tools/pre-execute", async (req, next) => {
       for (const v of Object.values(req.args ?? {})) {
-        if (typeof v === "string" && isBlocked(v)) { req.denied = `path in sensitive directory: ${v}`; return next(req); }
+        if (typeof v === "string" && isBlocked(v)) { req.denied = `path in sensitive directory: ${v}`; req.policy = "path-policy"; return next(req); }
       }
       return next(req);
     }, "waterfall", { priority: 30 });

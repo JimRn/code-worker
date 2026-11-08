@@ -82,9 +82,10 @@ export function installAgents(ctx) {
     const binding = req.binding ?? ctx.get("sessionScope")?.getStore()?.binding ?? null;
     if (!binding?.agent || binding.agent === "default") return next(req); // default agent: unrestricted
     const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent, cache);
-    if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }
+    if (!agent) { req.denied = `agent ${binding.agent} not found`; req.policy = "agent-whitelist"; return next(req); }
     if (agent.tools && !agent.tools.includes(req.name)) {
       req.denied = `tool ${req.name} not in agent ${agent.name} whitelist`;
+      req.policy = "agent-whitelist";
     }
     return next(req);
   }, "waterfall", { priority: 10 });
