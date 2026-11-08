@@ -679,12 +679,15 @@ async function renderTrace() {
 function showTraceDetail(ev, events) {
   $("#trace-detail").hidden = false;
   $("#td-title").textContent = ev.type === "tool/call" || ev.type === "tool/result" ? `${ev.data.name ?? "tool"}` : ev.type;
-  const result = ev.type === "tool/call" ? events.find((e, j) => j > events.indexOf(ev) && e.type === "tool/result" && e.data.callId === ev.data.callId) : null;
+  // Call and result rows share a callId: whichever row was clicked, show
+  // the pair (args from the call, output from the result).
+  const callEv = ev.type === "tool/call" ? ev : events.find((e) => e.type === "tool/call" && e.data.callId === ev.data.callId && events.indexOf(e) <= events.indexOf(ev));
+  const result = ev.type === "tool/result" ? ev : events.find((e, j) => j > events.indexOf(ev) && e.type === "tool/result" && e.data.callId === ev.data.callId);
   const dur = result ? result.ts - ev.ts : null;
   const tabs = {
     overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div>`,
-    args: `<pre>${esc(JSON.stringify(ev.data.args ?? {}, null, 2))}</pre>`,
-    result: `<pre>${esc(result ? String(result.data.output) : "（无结果）")}</pre>`,
+    args: `<pre>${esc(JSON.stringify(callEv?.data.args ?? ev.data.args ?? {}, null, 2))}</pre>`,
+    result: `<pre>${esc(result ? String(result.data.output ?? "") : "（无结果）")}</pre>`,
     schema: `<b>${esc(ev.data.name ?? "")}</b><pre>${esc(ev.data.name === "bash" ? "Execute a bash command: runs in the workspace cwd." : ev.data.name === "read_file" ? "Read a UTF-8 file inside the workspace." : ev.data.name === "write_file" ? "Write a UTF-8 file inside the workspace." : ev.data.name === "list_dir" ? "List a directory inside the workspace." : "Tool schema")}
 </pre>`,
     timing: `<div class="td-kv"><span>开始时间</span><b>${new Date(ev.ts).toISOString()}</b></div><div class="td-kv"><span>时长</span><b>${dur != null ? `${dur} 毫秒` : "—"}</b></div>`,
