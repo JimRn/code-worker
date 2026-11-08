@@ -67,10 +67,11 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #file-panel[hidden] { display:none; }
 #trash-panel { width:300px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #trash-panel[hidden] { display:none; }
-#terminal-panel { width:380px; flex:none; background:#0d1117; border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
-#terminal-panel[hidden] { display:none; }
+#terminal-view { flex:1; min-height:0; display:flex; flex-direction:column; background:#0d1117; }
+#terminal-view[hidden] { display:none; }
 #xterm-holder { flex:1; min-height:0; padding:6px; }
 #xterm-holder .xterm { height:100%; }
+#terminal-view .term-bar { padding:6px 10px; color:#8b949e; font-size:12px; border-bottom:1px solid #21262d; }
 #usage-panel-right { width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #usage-panel-right[hidden] { display:none; }
 #usage-detail { padding:12px; overflow:auto; }

@@ -68,9 +68,9 @@
       <div id="view-tabs">
         <button type="button" data-view="chat" class="active">对话</button>
         <button type="button" data-view="trace">轨迹</button>
+        <button type="button" data-view="terminal" id="tab-terminal">终端</button>
       </div>
       <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
-      <button id="toggle-terminal" type="button" title="终端面板">⌨ 终端</button>
       <button id="usage-chip" type="button" title="当前 Project Token 用量（点击看明细）"></button>
       <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
@@ -81,6 +81,10 @@
       </div>
       <div id="timeline"></div>
       <div id="trace-list"></div>
+    </div>
+    <div id="terminal-view" hidden>
+      <div class="term-bar"><span>⌨ 终端（PTY，经 WebSocket 实时）</span></div>
+      <div id="xterm-holder"></div>
     </div>
     <div id="messages"></div>
     <form id="composer">
@@ -123,10 +127,6 @@
     <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
     <ul id="fp-list"></ul>
     <pre id="fp-preview" hidden></pre>
-  </aside>
-  <aside id="terminal-panel" hidden>
-    <div class="fp-tab">⌨ 终端 <button id="tp2-close" type="button" title="关闭">✕</button></div>
-    <div id="xterm-holder"></div>
   </aside>
   <aside id="usage-panel-right" hidden>
     <div class="fp-tab">📊 用量 <button id="up-close" type="button" title="关闭">✕</button></div>

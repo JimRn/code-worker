@@ -572,23 +572,15 @@ async function termConnect() {
     termFit.fit();
     termXterm.onData((d) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ input: d })); });
     termXterm.onResize(({ cols, rows }) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ cols, rows })); });
-    window.addEventListener("resize", () => { if (!$("#terminal-panel").hidden) termFit.fit(); });
+    window.addEventListener("resize", () => { if (viewMode === "terminal" && termFit) termFit.fit(); });
   }
   termOpenWs();
 }
 // Terminal button only shows when the terminals plugin is loaded.
 (async () => {
   const s = await (await fetch(api("/settings"))).json().catch(() => ({}));
-  if (!s.capabilities?.terminal) $("#toggle-terminal").style.display = "none";
+  if (!s.capabilities?.terminal) $("#tab-terminal").style.display = "none";
 })();
-$("#toggle-terminal").onclick = () => {
-  $("#terminal-panel").hidden = !$("#terminal-panel").hidden;
-  if (!$("#terminal-panel").hidden) {
-    $("#file-panel").hidden = true; $("#usage-panel-right").hidden = true; $("#trash-panel").hidden = true;
-    if (!termWs) termConnect();
-  }
-};
-$("#tp2-close").onclick = () => { $("#terminal-panel").hidden = true; };
 
 $("#usage-chip").onclick = () => {
   $("#usage-panel-right").hidden = !$("#usage-panel-right").hidden;
@@ -625,8 +617,14 @@ document.querySelectorAll("#view-tabs button").forEach((b) => (b.onclick = () =>
   viewMode = b.dataset.view;
   document.querySelectorAll("#view-tabs button").forEach((x) => x.classList.toggle("active", x === b));
   $("#trace-view").hidden = viewMode !== "trace";
-  $("#messages").style.display = viewMode === "trace" ? "none" : "";
+  $("#terminal-view").hidden = viewMode !== "terminal";
+  $("#messages").style.display = viewMode === "chat" ? "" : "none";
+  $("#composer").style.display = viewMode === "terminal" ? "none" : "";
   if (viewMode === "trace") renderTrace();
+  if (viewMode === "terminal") {
+    if (!termWs) termConnect();
+    requestAnimationFrame(() => { termFit?.fit(); });
+  }
 }));
 
 const BADGE = { "user/message": ["用户", "user"], "assistant/message": ["助手", "assistant"], "tool/call": ["工具", "tool"], "tool/result": ["工具", "tool"], "system/message": ["上下文", "system"] };
