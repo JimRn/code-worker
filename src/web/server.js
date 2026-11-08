@@ -93,7 +93,7 @@ export function createWebServer({ ctx, store, approval, token }) {
         // Traversal whitelist: resolved path must stay inside webDir.
         if (full !== webDir && !full.startsWith(webDir + sep)) { res.writeHead(403); return res.end("forbidden"); }
         if (!existsSync(full)) { res.writeHead(404); return res.end("not found"); }
-        res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream" });
+        res.writeHead(200, { "content-type": MIME[file.match(/\.\w+$/)?.[0]] ?? "application/octet-stream", "cache-control": "no-cache" });
         return res.end(readFileSync(full));
       }
       // --- grouped routes ---
