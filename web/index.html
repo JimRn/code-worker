@@ -87,7 +87,6 @@
     <div id="file-view" hidden>
       <div class="fp-path"><span>📁 文件</span><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
       <ul id="fp-list"></ul>
-      <pre id="fp-preview" hidden></pre>
     </div>
     <div id="messages"></div>
     <form id="composer">
@@ -134,6 +133,12 @@
     <div class="fp-path"><span>已删除会话（可恢复）</span><button id="refresh-trash" type="button" title="刷新">↻</button></div>
     <ul id="trash-list"></ul>
   </aside>
+</div>
+<div id="preview-modal" hidden>
+  <div class="pv-card">
+    <div class="pv-head"><span id="pv-title"></span><span class="spacer"></span><button id="pv-download" type="button">⬇ 下载</button><button id="pv-close" type="button">✕</button></div>
+    <div id="pv-body" class="pv-body"></div>
+  </div>
 </div>
 <div id="modal" hidden>
   <div class="modal-card">

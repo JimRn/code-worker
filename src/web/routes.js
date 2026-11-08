@@ -161,6 +161,43 @@ export function registerWorkspaceRoutes(app) {
       sendJson(res, 400, { error: err.message });
     }
   });
+  // Binary file download/preview: same confinement as /read, no size-cap
+  // on content (streamed raw bytes), typed by extension for the browser.
+  const MIME_BY_EXT = {
+    pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+    webp: "image/webp", svg: "image/svg+xml", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    xls: "application/vnd.ms-excel", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    doc: "application/msword", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ppt: "application/vnd.ms-powerpoint", zip: "application/zip", txt: "text/plain; charset=utf-8",
+    md: "text/markdown; charset=utf-8", json: "application/json", csv: "text/csv; charset=utf-8",
+  };
+  app.route("GET", "/api/workspace/file", async (req, res, m, url) => {
+    const projectId = url.searchParams.get("projectId");
+    const sub = url.searchParams.get("path") || "";
+    try {
+      let abs;
+      if (projectId) {
+        const dir = realpathSync(ctx.get("projects").get(projectId).dir);
+        abs = realpathSync(resolve(dir, sub));
+        if (abs !== dir && !abs.startsWith(dir + sep)) return sendJson(res, 403, { error: "path escapes project repo" });
+        if (abs.split(sep).some((seg) => [".."].includes(seg))) return sendJson(res, 403, { error: "path escapes" });
+        if (statSync(abs).isDirectory()) return sendJson(res, 400, { error: "is a directory" });
+      } else {
+        abs = ctx.require("fs").resolve(sub);
+      }
+      if (statSync(abs).size > 20 * 1024 * 1024) return sendJson(res, 413, { error: "file too large (20MB)" });
+      const ext = abs.split(".").pop()?.toLowerCase();
+      const base = abs.split(sep).pop() ?? "file";
+      res.writeHead(200, {
+        "content-type": MIME_BY_EXT[ext] ?? "application/octet-stream",
+        "content-disposition": `attachment; filename="${encodeURIComponent(base)}"`,
+        "content-length": statSync(abs).size,
+      });
+      res.end(readFileSync(abs));
+    } catch (err) {
+      sendJson(res, 400, { error: err.message });
+    }
+  });
   app.route("GET", "/api/workspace", async (req, res, m, url) => {
     const fs = ctx.require("fs");
     const sub = url.searchParams.get("path") || ".";

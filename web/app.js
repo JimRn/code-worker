@@ -696,18 +696,76 @@ async function refreshWorkspace() {
     if (li.dataset.up) wsPath = wsPath.split("/").slice(0, -1).join("/") || ".";
     else if (li.classList.contains("dir")) wsPath = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;
     else {
-      // file: preview
+      // file: open preview popup (md rendered / pdf iframe / office via libs / text)
       const p = wsPath === "." ? li.dataset.name : `${wsPath}/${li.dataset.name}`;
-      const d = await (await fetch(api(`/workspace/read?path=${encodeURIComponent(p)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
-      const pre = $("#fp-preview");
-      pre.hidden = false;
-      pre.textContent = d.content ?? d.error ?? "";
+      previewFile(p, li.dataset.name, pid);
       return;
     }
-    $("#fp-preview").hidden = true;
     refreshWorkspace();
   }));
 }
+
+// --- File preview popup: md rendered, pdf iframe, xlsx/docx/pptx via CDN libs, text fallback ---
+let pvUrl = null;
+async function previewFile(path, name, pid) {
+  const body = $("#pv-body");
+  $("#pv-title").textContent = name;
+  body.innerHTML = "加载中…";
+  $("#preview-modal").hidden = false;
+  pvUrl = api(`/workspace/file?path=${encodeURIComponent(path)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`);
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  try {
+    if (["md", "markdown"].includes(ext)) {
+      const d = await (await fetch(api(`/workspace/read?path=${encodeURIComponent(path)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
+      if (d.error) throw new Error(d.error);
+      body.innerHTML = mdToHtml(d.content || "");
+    } else if (ext === "pdf") {
+      const buf = await (await fetch(pvUrl)).arrayBuffer();
+      const blob = new Blob([buf], { type: "application/pdf" });
+      body.innerHTML = `<iframe src="${URL.createObjectURL(blob)}"></iframe>`;
+    } else if (["xlsx", "xls"].includes(ext)) {
+      await loadLib("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js", "XLSX");
+      const buf = await (await fetch(pvUrl)).arrayBuffer();
+      const wb = XLSX.read(buf);
+      body.innerHTML = wb.SheetNames.map((n) => `<p><b>${esc(n)}</b></p>${XLSX.utils.sheet_to_html(wb.Sheets[n])}`).join("");
+    } else if (ext === "docx") {
+      await loadLib("https://cdn.jsdelivr.net/npm/mammoth@1.11.0/mammoth.browser.min.js", "mammoth");
+      const buf = await (await fetch(pvUrl)).arrayBuffer();
+      const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+      body.innerHTML = value;
+    } else if (ext === "pptx") {
+      await loadLib("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js", "JSZip");
+      const buf = await (await fetch(pvUrl)).arrayBuffer();
+      const zip = await JSZip.loadAsync(buf);
+      const slides = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort();
+      if (!slides.length) throw new Error("no slides found");
+      body.innerHTML = (await Promise.all(slides.map(async (n, i) => {
+        const xml = await zip.file(n).async("text");
+        const texts = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => esc(m[1]));
+        return `<div class="pv-slide"><p><b>Slide ${i + 1}</b></p>${texts.map((t) => `<p>${t}</p>`).join("")}</div>`;
+      }))).join("");
+    } else if (["txt", "log", "json", "csv", "ts", "js", "py", "sh", "html", "xml", "yaml", "yml", "toml", "ini", "css"].includes(ext)) {
+      const d = await (await fetch(api(`/workspace/read?path=${encodeURIComponent(path)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ""}`))).json();
+      if (d.error) throw new Error(d.error);
+      body.innerHTML = `<pre>${esc(d.content || "")}</pre>`;
+    } else {
+      body.innerHTML = `<p>该类型不支持在线预览，请下载查看。</p>`;
+    }
+  } catch (e) {
+    body.innerHTML = `<p>预览失败：${esc(e.message)}</p>`;
+  }
+}
+function loadLib(url, globalName) {
+  return new Promise((resolve, reject) => {
+    if (window[globalName]) return resolve();
+    const sc = document.createElement("script");
+    sc.src = url; sc.onload = resolve; sc.onerror = () => reject(new Error(`failed to load ${globalName} (CDN unreachable?)`));
+    document.head.appendChild(sc);
+  });
+}
+$("#pv-download").onclick = () => { if (pvUrl) location.href = pvUrl; };
+$("#pv-close").onclick = () => { $("#preview-modal").hidden = true; };
+$("#preview-modal").addEventListener("click", (e) => { if (e.target.id === "preview-modal") $("#preview-modal").hidden = true; });
 
 loadSettings?.();
 refreshWorkspace();
