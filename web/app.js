@@ -73,30 +73,6 @@ function closeTurn(ts) {
   currentTurn = null;
 }
 
-function parseChoices(text) {
-  // Only treat a list as choices when it reads like a question: at least two
-  // NUMBERED items, or bullets right after a "?"/"选择" line. Plain bullet
-  // instructions (玩法/说明) must not become clickable buttons.
-  const lines = String(text).split("\n");
-  const numbered = [];
-  const bulleted = [];
-  for (const line of lines) {
-    const nm = line.match(/^\s*\d+[.)、]\s+(.+\S)\s*$/);
-    if (nm) numbered.push(nm[1]);
-    const bm = line.match(/^\s*[-*•]\s+(.+\S)\s*$/);
-    if (bm) bulleted.push(bm[1]);
-  }
-  const clean = (v) => v.replace(/^\*\*(.*?)\*\*/, "$1").replace(/\*\*/g, "").slice(0, 40);
-  if (numbered.length >= 2) return numbered.map(clean);
-  const asks = lines.some((l) => /\?\s*$/.test(l) || /选择|你想|想选|要哪个|做什么/.test(l));
-  if (asks && bulleted.length >= 2) return bulleted.map(clean);
-  return [];
-}
-async function sendChoice(text) {
-  if (!currentId || sending) return;
-  $("#input").value = text;
-  $("#composer").requestSubmit();
-}
 function renderEvent(ev) {
   const box = $("#messages");
   // Turn grouping: tool/reasoning blocks collapse under a turn header.
@@ -256,20 +232,6 @@ function renderEvent(ev) {
       mdToHtml(ev.data.text || "") +
       (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓${ev.data.usage.prompt_tokens_details?.cached_tokens ? `（缓存 ${ev.data.usage.prompt_tokens_details.cached_tokens}）` : ""}</div>` : "");
     div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
-    // Clickable choices (numbered/bulleted option lists): click to answer,
-    // with a free-text field for anything else.
-    const choices = parseChoices(ev.data.text || "");
-    if (choices.length >= 2) {
-      const bar = document.createElement("div");
-      bar.className = "choices";
-      bar.innerHTML = choices.map((c, i) => `<button class="choice" data-i="${i}">${esc(c)}</button>`).join("") +
-        `<span class="choice-custom"><input placeholder="或输入其他答案…"><button class="choice-send">发送</button></span>`;
-      bar.querySelectorAll(".choice").forEach((b) => (b.onclick = () => sendChoice(choices[+b.dataset.i])));
-      const ci = bar.querySelector("input");
-      bar.querySelector(".choice-send").onclick = () => { if (ci.value.trim()) sendChoice(ci.value.trim()); };
-      ci.onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing && ci.value.trim()) sendChoice(ci.value.trim()); };
-      div.appendChild(bar);
-    }
     if (ev.data.usage) updateUsage();
     (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
     box.scrollTop = box.scrollHeight;
