@@ -201,7 +201,8 @@ button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 
 .pv-body table { border-collapse:collapse; font-size:12px; }
 .pv-body td, .pv-body th { border:1px solid var(--line); padding:4px 8px; }
 .pv-body .pv-slide { border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:12px; }
-#project-env { border-top:1px solid var(--line); padding-top:8px; margin-top:8px; }
+#env-view { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--panel); padding:10px 14px; }
+#env-view[hidden] { display:none; }
 #env-list { list-style:none; margin:6px 0; padding:0; }
 #env-list li { display:flex; gap:6px; align-items:center; font-size:12px; padding:3px 4px; }
 #env-list code { flex:1; }

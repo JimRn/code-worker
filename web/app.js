@@ -629,9 +629,11 @@ document.querySelectorAll("#view-tabs button").forEach((b) => (b.onclick = () =>
   $("#trace-view").hidden = viewMode !== "trace";
   $("#terminal-view").hidden = viewMode !== "terminal";
   $("#file-view").hidden = viewMode !== "file";
+  $("#env-view").hidden = viewMode !== "env";
   $("#messages").style.display = viewMode === "chat" ? "" : "none";
-  $("#composer").style.display = (viewMode === "terminal" || viewMode === "file") ? "none" : "";
+  $("#composer").style.display = (viewMode === "terminal" || viewMode === "file" || viewMode === "env") ? "none" : "";
   if (viewMode === "file") refreshWorkspace();
+  if (viewMode === "env") refreshEnv();
   if (viewMode === "trace") renderTrace();
   if (viewMode === "terminal") {
     if (!termWs) termConnect();
