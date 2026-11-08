@@ -1,7 +1,7 @@
 // Terminal seam (mirrors DSH terminal/terminal-bash): persistent PTY sessions.
 // Definition: TerminalService (open/send/read/close, branded ids, owner-scoped).
 // Provider: LocalPtyBackend (node-pty bash). Consumer: terminal_* tools.
-import pty from "node-pty";
+// node-pty is loaded lazily at spawn time so terminals-less profiles never need the native module.
 import { randomUUID } from "node:crypto";
 
 /** Service Definition. */
@@ -37,6 +37,17 @@ export class TerminalService {
     const s = this.require(id, owner);
     return s.output.slice(-8000);
   }
+  /** Live subscription to PTY output (for WebSocket streaming). */
+  subscribe(id, owner, fn) {
+    const s = this.require(id, owner);
+    s.session.onData(fn);
+    return () => {};
+  }
+  /** Resize the PTY (cols/rows). */
+  resize(id, owner, cols, rows) {
+    const s = this.require(id, owner);
+    s.session.resize?.(cols, rows);
+  }
   async close(id, owner) {
     const s = this.require(id, owner);
     this.sessions.delete(id);
@@ -54,11 +65,13 @@ export class TerminalService {
 export class LocalPtyBackend {
   constructor(shell = "bash") { this.shell = shell; }
   async spawn({ cwd }) {
+    const { default: pty } = await import("node-pty");
     const proc = pty.spawn(this.shell, [], { name: "xterm-256color", cols: 120, rows: 40, cwd: cwd ?? process.cwd() });
     const listeners = new Set();
     const session = {
       motd: "",
       write: (t) => proc.write(t),
+      resize: (cols, rows) => proc.resize(cols, rows),
       onData: (fn) => { listeners.add(fn); },
       close: async () => { try { proc.kill(); } catch { /* already exited */ } },
     };

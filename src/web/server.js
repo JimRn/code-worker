@@ -66,7 +66,7 @@ export function createWebServer({ ctx, store, approval, token }) {
     !token || req.headers["x-cw-token"] === token ||
     req.headers.authorization === `Bearer ${token}` || url.searchParams.get("token") === token;
 
-  return createServer(async (req, res) => {
+  const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     try {
       if (url.pathname.startsWith("/api/") && !authorized(req, url)) {
@@ -95,6 +95,32 @@ export function createWebServer({ ctx, store, approval, token }) {
       else console.error("[web] handler error after headers sent:", err.message);
     }
   });
+  // WebSocket upgrade: /api/terminals/:id/ws?token= (xterm.js <-> PTY).
+  server.on("upgrade", async (req, socket, head) => {
+    try {
+      const url = new URL(req.url, "http://localhost");
+      const m = url.pathname.match(/^\/api\/terminals\/([\w-]+)\/ws$/);
+      if (!m) { socket.destroy(); return; }
+      if (!authorized(req, url)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); socket.destroy(); return; }
+      const { WebSocketServer } = await import("ws");
+      const wss = new WebSocketServer({ noServer: true });
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit("connection", ws, req);
+        const terminals = ctx.require("terminals");
+        const owner = "web";
+        const off = terminals.subscribe(m[1], owner, (d) => { if (ws.readyState === 1) ws.send(d); });
+        ws.on("message", (msg) => {
+          try {
+            const { input, cols, rows } = JSON.parse(msg.toString());
+            if (cols && rows) terminals.resize(m[1], owner, cols, rows);
+            if (input) terminals.send(m[1], owner, input).catch(() => {});
+          } catch { /* ignore */ }
+        });
+        ws.on("close", () => { off(); wss.close(); });
+      });
+    } catch { socket.destroy(); }
+  });
+  return server;
 }
 
 /** Start listening on all interfaces (LAN reachable); resolves with the bound address. */

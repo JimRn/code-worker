@@ -126,8 +126,7 @@
   </aside>
   <aside id="terminal-panel" hidden>
     <div class="fp-tab">⌨ 终端 <button id="tp2-close" type="button" title="关闭">✕</button></div>
-    <pre id="term-out"></pre>
-    <div class="term-input-row"><input id="term-cmd" placeholder="输入命令，回车执行"><button id="term-send" type="button">发送</button></div>
+    <div id="xterm-holder"></div>
   </aside>
   <aside id="usage-panel-right" hidden>
     <div class="fp-tab">📊 用量 <button id="up-close" type="button" title="关闭">✕</button></div>
@@ -150,6 +149,9 @@
     </div>
   </div>
 </div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.10.0/lib/xterm-addon-fit.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

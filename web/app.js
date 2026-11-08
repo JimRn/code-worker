@@ -545,35 +545,32 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
-// --- Web terminal (PTY via /api/terminals) ---
-let termId = null;
-async function termEnsure() {
-  if (termId) return termId;
+// --- Web terminal: xterm.js + WebSocket to PTY (PuTTY-like) ---
+let termWs = null, termXterm = null, termFit = null;
+async function termConnect() {
   const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
-  termId = r.id;
-  return termId;
+  const id = r.id;
+  termXterm = new Terminal({ cursorBlink: true, scrollback: 5000, theme: { background: "#0d1117" } });
+  termXterm.open($("#xterm-holder"));
+  termFit = new FitAddon.FitAddon();
+  termXterm.loadAddon(termFit);
+  termFit.fit();
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${proto}//${location.host}/api/terminals/${encodeURIComponent(id)}/ws${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
+  termWs = new WebSocket(wsUrl);
+  termWs.onmessage = (e) => termXterm.write(e.data);
+  termXterm.onData((d) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ input: d })); });
+  termXterm.onResize(({ cols, rows }) => { if (termWs?.readyState === 1) termWs.send(JSON.stringify({ cols, rows })); });
+  window.addEventListener("resize", () => termFit.fit());
 }
-$("#toggle-terminal").onclick = async () => {
+$("#toggle-terminal").onclick = () => {
   $("#terminal-panel").hidden = !$("#terminal-panel").hidden;
   if (!$("#terminal-panel").hidden) {
     $("#file-panel").hidden = true; $("#usage-panel-right").hidden = true; $("#trash-panel").hidden = true;
-    await termEnsure();
-    $("#term-cmd").focus();
+    if (!termWs) termConnect();
   }
 };
 $("#tp2-close").onclick = () => { $("#terminal-panel").hidden = true; };
-async function termSend() {
-  const cmd = $("#term-cmd").value.trim();
-  if (!cmd) return;
-  $("#term-cmd").value = "";
-  $("#term-out").textContent += `\n$ ${cmd}\n`;
-  const id = await termEnsure();
-  const r = await (await fetch(api(`/terminals/${encodeURIComponent(id)}/send`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ command: cmd }) })).json();
-  $("#term-out").textContent += r.output ?? r.error ?? "";
-  $("#term-out").scrollTop = $("#term-out").scrollHeight;
-}
-$("#term-send").onclick = () => termSend();
-$("#term-cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") termSend(); });
 
 $("#usage-chip").onclick = () => {
   $("#usage-panel-right").hidden = !$("#usage-panel-right").hidden;

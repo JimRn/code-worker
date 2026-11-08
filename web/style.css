@@ -69,9 +69,8 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #trash-panel[hidden] { display:none; }
 #terminal-panel { width:380px; flex:none; background:#0d1117; border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #terminal-panel[hidden] { display:none; }
-#term-out { flex:1; margin:0; padding:10px; overflow:auto; font-family:ui-monospace,monospace; font-size:12px; white-space:pre-wrap; color:#c9d1d9; }
-.term-input-row { display:flex; gap:6px; padding:8px; border-top:1px solid var(--line); }
-.term-input-row input { flex:1; background:#161b22; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font-family:ui-monospace,monospace; font-size:12px; }
+#xterm-holder { flex:1; min-height:0; padding:6px; }
+#xterm-holder .xterm { height:100%; }
 #usage-panel-right { width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #usage-panel-right[hidden] { display:none; }
 #usage-detail { padding:12px; overflow:auto; }

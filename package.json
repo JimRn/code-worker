@@ -17,7 +17,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "ws": "^8.22.1"
   },
   "allowScripts": {
     "node-pty@1.1.0": true
