@@ -62,14 +62,17 @@ export class OpenAICompatibleAdapter {
           await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
           continue;
         }
-        if (res.ok || attempt >= maxRetries) break;
+        if (res.ok) break;
         // Some providers (e.g. Stealth) surface transient failures as 400 with
         // "Provider returned error" — retry those too; genuine 400s exhaust retries.
         const bodyText = (await res.text().catch(() => "")).slice(0, 1024);
         if (!retryable(res.status) && !(res.status === 400 && bodyText.includes("Provider returned error"))) {
           throw new Error(`LLM HTTP ${res.status}: ${bodyText.slice(0, 500)}`);
         }
-        await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
+        // Provider-flavored 400s are flaky (esp. Stealth): allow extra retries.
+        const limit = res.status === 400 ? Math.max(maxRetries, 4) : maxRetries;
+        if (attempt >= limit) throw new Error(`LLM HTTP ${res.status}: ${bodyText.slice(0, 500)}`);
+        await new Promise((r) => setTimeout(r, 300 * 2 ** attempt));
       }
       if (!res.ok) {
         const reqChars = JSON.stringify(messages).length;
