@@ -54,8 +54,20 @@ export class AgentLoop {
         await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls, usage: result.usage ?? undefined, reasoning: result.reasoning ?? undefined });
         if (!result.toolCalls?.length) { await session.append("step/end", { step }); break; }
         for (const tc of result.toolCalls) await session.append("tool/call", { callId: tc.id, name: tc.name, args: tc.args });
-        const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding });
-        for (const r of results) await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
+        // Every tool/call MUST get a tool/result (strict providers 400 unpaired
+        // calls forever). Guarantee in finally, even if execution itself throws.
+        const done = new Set();
+        try {
+          const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding });
+          for (const r of results) {
+            done.add(r.callId);
+            await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false });
+          }
+        } finally {
+          for (const tc of result.toolCalls) {
+            if (!done.has(tc.id)) await session.append("tool/result", { callId: tc.id, name: tc.name, output: "Error: tool execution interrupted", isError: true });
+          }
+        }
         await session.append("step/end", { step });
       }
       await ctx.serial("agent/turn-stopping", { session });
