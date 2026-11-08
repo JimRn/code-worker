@@ -1,0 +1,33 @@
+{"v":1,"seq":0,"ts":1794102949796,"type":"turn/start","data":{}}
+{"v":1,"seq":1,"ts":1794102949796,"type":"user/message","data":{"text":"hello"}}
+{"v":1,"seq":2,"ts":1794102949796,"type":"system/message","data":{"text":"You are Code Worker, a coding agent. Use tools when needed.\n\n## Project instructions (AGENTS.md)\n# Project Instructions\n\nDescribe project conventions, architecture, and rules every agent session must follow.\n"}}
+{"v":1,"seq":3,"ts":1794102949797,"type":"step/start","data":{"step":0}}
+{"v":1,"seq":4,"ts":1794102993451,"type":"assistant/message","data":{"text":"Hello! I'm Code Worker, a coding agent. How can I help you today?","toolCalls":[],"usage":{"prompt_tokens":48,"completion_tokens":16,"total_tokens":64,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":50,"image_tokens":0,"audio_tokens":0}}}}
+{"v":1,"seq":5,"ts":1794102993451,"type":"step/end","data":{"step":0}}
+{"v":1,"seq":6,"ts":1794102993451,"type":"turn/end","data":{}}
+{"v":1,"seq":7,"ts":1794103005062,"type":"session/title","data":{"text":"Hello and welcome"}}
+{"v":1,"seq":8,"ts":1794104081059,"type":"turn/start","data":{}}
+{"v":1,"seq":9,"ts":1794104081059,"type":"user/message","data":{"text":"hello"}}
+{"v":1,"seq":10,"ts":1794104081059,"type":"step/start","data":{"step":0}}
+{"v":1,"seq":11,"ts":1794104084512,"type":"assistant/message","data":{"text":"Hello! I'm Code Worker. What would you like to work on today?","toolCalls":[],"usage":{"prompt_tokens":64,"completion_tokens":15,"total_tokens":79,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":32,"image_tokens":0,"audio_tokens":0}}}}
+{"v":1,"seq":12,"ts":1794104084512,"type":"step/end","data":{"step":0}}
+{"v":1,"seq":13,"ts":1794104084513,"type":"turn/end","data":{}}
+{"v":1,"seq":14,"ts":1794104384603,"type":"turn/start","data":{}}
+{"v":1,"seq":15,"ts":1794104384603,"type":"user/message","data":{"text":"你当前有哪些文件目录"}}
+{"v":1,"seq":16,"ts":1794104384604,"type":"step/start","data":{"step":0}}
+{"v":1,"seq":17,"ts":1794104388163,"type":"assistant/message","data":{"text":"","toolCalls":[{"id":"d93396f9-ac0e-404f-b85e-4f7beee0095c","name":"list_dir","args":{"path":"."}}],"usage":{"prompt_tokens":91,"completion_tokens":4,"total_tokens":95,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}}
+{"v":1,"seq":18,"ts":1794104388163,"type":"tool/call","data":{"callId":"d93396f9-ac0e-404f-b85e-4f7beee0095c","name":"list_dir","args":{"path":"."}}}
+{"v":1,"seq":19,"ts":1794104388164,"type":"tool/result","data":{"callId":"d93396f9-ac0e-404f-b85e-4f7beee0095c","name":"list_dir","output":"docs","isError":false}}
+{"v":1,"seq":20,"ts":1794104388164,"type":"step/end","data":{"step":0}}
+{"v":1,"seq":21,"ts":1794104388164,"type":"step/start","data":{"step":1}}
+{"v":1,"seq":22,"ts":1794104390766,"type":"assistant/message","data":{"text":"","toolCalls":[{"id":"818f53a4-d081-408b-80e9-bb0d1f26c669","name":"list_dir","args":{"path":"docs"}}],"usage":{"prompt_tokens":91,"completion_tokens":6,"total_tokens":97,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}}
+{"v":1,"seq":23,"ts":1794104390766,"type":"tool/call","data":{"callId":"818f53a4-d081-408b-80e9-bb0d1f26c669","name":"list_dir","args":{"path":"docs"}}}
+{"v":1,"seq":24,"ts":1794104390766,"type":"tool/result","data":{"callId":"818f53a4-d081-408b-80e9-bb0d1f26c669","name":"list_dir","output":"README.md\n问价.md","isError":false}}
+{"v":1,"seq":25,"ts":1794104390766,"type":"step/end","data":{"step":1}}
+{"v":1,"seq":26,"ts":1794104390766,"type":"step/start","data":{"step":2}}
+{"v":1,"seq":27,"ts":1794105937856,"type":"turn/start","data":{}}
+{"v":1,"seq":28,"ts":1794105937857,"type":"user/message","data":{"text":"hello"}}
+{"v":1,"seq":29,"ts":1794105937857,"type":"step/start","data":{"step":0}}
+{"v":1,"seq":30,"ts":1794105944479,"type":"assistant/message","data":{"text":"Hello! I'm Code Worker. How can I help you today?","toolCalls":[],"usage":{"prompt_tokens":95,"completion_tokens":10,"total_tokens":105,"cost":0,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0,"upstream_inference_prompt_cost":0,"upstream_inference_completions_cost":0},"completion_tokens_details":{"reasoning_tokens":66,"image_tokens":0,"audio_tokens":0}}}}
+{"v":1,"seq":31,"ts":1794105944480,"type":"step/end","data":{"step":0}}
+{"v":1,"seq":32,"ts":1794105944480,"type":"turn/end","data":{}}

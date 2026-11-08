@@ -515,6 +515,11 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+$("#toggle-trash").onclick = () => {
+  $("#trash-panel").hidden = !$("#trash-panel").hidden;
+  if (!$("#trash-panel").hidden) { $("#file-panel").hidden = true; refreshTrash(); }
+};
+$("#tp-close").onclick = () => { $("#trash-panel").hidden = true; };
 
 // Thinking indicator: shown the moment a message is sent, removed when the
 // first assistant content (or turn end) arrives.

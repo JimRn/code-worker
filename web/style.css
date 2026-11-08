@@ -56,6 +56,10 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 .td-kv span { color:var(--muted); width:64px; flex:none; }
 #file-panel { width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #file-panel[hidden] { display:none; }
+#trash-panel { width:300px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+#trash-panel[hidden] { display:none; }
+#trash-list { list-style:none; margin:0; padding:6px; overflow:auto; flex:1; }
+#toggle-trash { margin-left:8px; }
 .fp-tab { display:flex; align-items:center; gap:6px; padding:10px 12px; border-bottom:1px solid var(--line); font-size:13px; }
 .fp-tab button { margin-left:auto; background:transparent; border:0; color:var(--muted); cursor:pointer; }
 .fp-path { display:flex; align-items:center; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); word-break:break-all; }

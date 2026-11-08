@@ -36,10 +36,7 @@
     <button id="new-project" type="button" hidden>+ 新 Project</button>
     <button id="new-session">+ 新会话</button>
     <ul id="session-list"></ul>
-    <div id="trash">
-      <div class="ws-head">回收站 <button id="refresh-trash" type="button" title="刷新">↻</button></div>
-      <ul id="trash-list"></ul>
-    </div>
+    <div id="trash" hidden></div>
     <label class="approve"><input type="checkbox" id="approve"> 批准写文件/命令</label>
     <label class="approve"><input type="checkbox" id="per-call"> 逐次审批</label>
     <button id="open-settings" type="button">⚙ 模型设置</button>
@@ -70,6 +67,7 @@
         <button type="button" data-view="trace">轨迹</button>
       </div>
       <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
+      <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
     <div id="trace-view" hidden>
       <div class="trace-bar">
@@ -120,6 +118,11 @@
     <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
     <ul id="fp-list"></ul>
     <pre id="fp-preview" hidden></pre>
+  </aside>
+  <aside id="trash-panel" hidden>
+    <div class="fp-tab">🗑 回收站 <button id="tp-close" type="button" title="关闭">✕</button></div>
+    <div class="fp-path"><span>已删除会话（可恢复）</span><button id="refresh-trash" type="button" title="刷新">↻</button></div>
+    <ul id="trash-list"></ul>
   </aside>
 </div>
 <script type="module" src="/app.js"></script>
