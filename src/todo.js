@@ -29,10 +29,14 @@ export function createTodoWriter(session) {
   };
 }
 
-/** Consumer: registers the todo_write tool on ctx.tools + provides the writer factory. */
+/** Consumer: registers the todo_write tool on ctx.tools and injects the
+ * appendTodo capability through tools/pre-execute (core registry stays generic). */
 export function registerTodoTools(ctx) {
   const tools = ctx.require("tools");
-  ctx.provide("todoWriter", createTodoWriter);
+  ctx.on("tools/pre-execute", async (req, next) => {
+    if (req.session) req.appendTodo = createTodoWriter(req.session);
+    return next(req);
+  }, "waterfall", { priority: 5 });
   ctx.effect(() => tools.register({
     name: "todo_write",
     description: "Replace the session todo list (whole-list snapshot). Call at task start and update statuses as you work.",
