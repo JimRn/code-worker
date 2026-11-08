@@ -34,10 +34,13 @@ export const plugin = {
       for (const v of Object.values(req.args ?? {})) {
         if (typeof v === "string" && isBlocked(v)) { req.denied = `path in sensitive directory: ${v}`; req.policy = "path-policy"; return next(req); }
       }
-      const cmd = req.args?.command;
-      if (typeof cmd === "string") {
-        const pat = matchBlockedCommand(cmd);
-        if (pat) { req.denied = `command matches blocked pattern: ${pat}`; req.policy = "path-policy"; return next(req); }
+      // Command patterns apply to ANY string argument (command, file content,
+      // agent briefs...) — hiding a blocked command inside write_file content
+      // and running it later hits the same wall.
+      for (const v of Object.values(req.args ?? {})) {
+        if (typeof v !== "string") continue;
+        const pat = matchBlockedCommand(v);
+        if (pat) { req.denied = `argument matches blocked pattern: ${pat}`; req.policy = "path-policy"; return next(req); }
       }
       return next(req);
     }, "waterfall", { priority: 30 });
