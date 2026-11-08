@@ -35,7 +35,7 @@ export class AgentLoop {
         let messages = compaction ? compaction.prune(pre.messages) : pre.messages;
         if (compaction) {
           const tools = ctx.require("tools").schemas();
-          await compaction.maybeCompact(session, messages, systemText.length, JSON.stringify(tools).length);
+          await compaction.maybeCompact(session, messages, systemText.length, JSON.stringify(tools).length, this.config?.contextWindow);
         }
         messages = session.deriveMessages();
         await session.append("step/start", { step });

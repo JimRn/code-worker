@@ -28,6 +28,7 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
   modelConfig.baseUrl ??= settings.getConfig().baseUrl;
   modelConfig.model ??= settings.getConfig().model;
   modelConfig.reasoningEffort ??= settings.getConfig().reasoningEffort;
+  modelConfig.contextWindow ??= settings.getConfig().contextWindow;
 
   const sharedEnv = {
     home: profile.home ?? ".code-worker",

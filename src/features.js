@@ -17,8 +17,8 @@ export class CompactionService {
     return Math.ceil(estimateChars(messages) / 4) + Math.ceil(systemChars / 4) + Math.ceil(toolsChars / 4);
   }
   /** Token-budget check replacing the old fixed char threshold. */
-  overBudget(messages, systemChars = 0, toolsChars = 0) {
-    const budget = this.opts.contextWindow - this.opts.outputReserve - this.opts.safety;
+  overBudget(messages, systemChars = 0, toolsChars = 0, contextWindow) {
+    const budget = (contextWindow ?? this.opts.contextWindow) - this.opts.outputReserve - this.opts.safety;
     return CompactionService.estimateTokens(messages, systemChars, toolsChars) > budget;
   }
   /** Prune old tool results in place (pure). */
@@ -33,8 +33,8 @@ export class CompactionService {
     return text;
   }
   /** Auto-compact if over token budget; failure degrades to a warning. */
-  async maybeCompact(session, messages, systemChars = 0, toolsChars = 0) {
-    if (!this.overBudget(this.prune(messages), systemChars, toolsChars)) return false;
+  async maybeCompact(session, messages, systemChars = 0, toolsChars = 0, contextWindow) {
+    if (!this.overBudget(this.prune(messages), systemChars, toolsChars, contextWindow)) return false;
     try { await this.compact(session); return true; }
     catch (err) { console.error(`[compact] failed, continuing: ${err.message}`); return false; }
   }

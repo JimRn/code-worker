@@ -27,11 +27,12 @@ export class SettingsStore {
       baseUrl: s.baseUrl ?? "",
       model: s.model ?? "",
       reasoningEffort: s.reasoningEffort ?? "",
+      contextWindow: s.contextWindow ?? "",
       hasApiKey: Boolean(c.apiKey),
     };
   }
   /** Save config; apiKey is written only when a non-empty value is provided. */
-  update({ baseUrl, model, apiKey, reasoningEffort }) {
+  update({ baseUrl, model, apiKey, reasoningEffort, contextWindow }) {
     if (baseUrl !== undefined) {
       if (baseUrl && !/^https?:\/\//.test(baseUrl)) throw new Error("baseUrl must be an http(s) URL");
       const s = readJson(this.settingsFile, {});
@@ -41,6 +42,14 @@ export class SettingsStore {
     if (model !== undefined) {
       const s = readJson(this.settingsFile, {});
       s.model = model;
+      atomicWrite(this.settingsFile, s);
+    }
+    if (contextWindow !== undefined) {
+      const n = Number(contextWindow);
+      if (contextWindow && (!Number.isFinite(n) || n < 4000)) throw new Error("contextWindow must be >= 4000 or empty");
+      const s = readJson(this.settingsFile, {});
+      if (contextWindow) s.contextWindow = Math.floor(n);
+      else delete s.contextWindow;
       atomicWrite(this.settingsFile, s);
     }
     if (reasoningEffort !== undefined) {
@@ -66,6 +75,6 @@ export class SettingsStore {
   getApiKey() { return readJson(this.credsFile, {}).apiKey; }
   getConfig() {
     const s = readJson(this.settingsFile, {});
-    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, apiKey: this.getApiKey() };
+    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, apiKey: this.getApiKey() };
   }
 }

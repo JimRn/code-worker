@@ -111,6 +111,7 @@ export function registerSettingsRoutes(app) {
     if (body.baseUrl !== undefined) modelConfig().baseUrl = body.baseUrl || undefined;
     if (body.model !== undefined) modelConfig().model = body.model || undefined;
     if (body.reasoningEffort !== undefined) modelConfig().reasoningEffort = body.reasoningEffort || undefined;
+    if (body.contextWindow !== undefined) modelConfig().contextWindow = body.contextWindow ? Number(body.contextWindow) : undefined;
     if (body.apiKey) modelConfig().apiKey = body.apiKey;
     sendJson(res, 200, view);
   });
