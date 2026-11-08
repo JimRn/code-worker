@@ -129,13 +129,6 @@ function renderEvent(ev) {
     if (block) {
       block.querySelector(".tb-out").textContent = ev.data.output;
       if (ev.data.isError) block.classList.add("error");
-      // Governance (监管): policy blocks are labeled with the policy name.
-      if (ev.data.policy) {
-        const g = document.createElement("div");
-        g.className = "tb-policy";
-        g.textContent = `监管：Block（${ev.data.policy}）`;
-        block.appendChild(g);
-      }
       return;
     }
     // fallback: standalone result
@@ -695,6 +688,9 @@ function showTraceDetail(ev, events) {
     overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div><div class="td-kv"><span>监管</span><b>${result?.data.policy ? `Block（${result.data.policy}）` : "—"}</b></div>`,
     args: `<pre>${esc(JSON.stringify(callEv?.data.args ?? ev.data.args ?? {}, null, 2))}</pre>`,
     result: `<pre>${esc(result ? String(result.data.output ?? "") : "（无结果）")}</pre>`,
+    policy: result?.data.policy
+      ? `<div class="td-kv"><span>监管</span><b>Block（${esc(result.data.policy)}）</b></div><div class="td-kv"><span>说明</span><b>${esc(String(result.data.output ?? ""))}</b></div>`
+      : `<div class="td-kv"><span>监管</span><b>未被任何 policy 阻止</b></div>`,
     schema: `<b>${esc(ev.data.name ?? "")}</b><pre>${esc(ev.data.name === "bash" ? "Execute a bash command: runs in the workspace cwd." : ev.data.name === "read_file" ? "Read a UTF-8 file inside the workspace." : ev.data.name === "write_file" ? "Write a UTF-8 file inside the workspace." : ev.data.name === "list_dir" ? "List a directory inside the workspace." : "Tool schema")}
 </pre>`,
     timing: `<div class="td-kv"><span>开始时间</span><b>${new Date(ev.ts).toISOString()}</b></div><div class="td-kv"><span>时长</span><b>${dur != null ? `${dur} 毫秒` : "—"}</b></div>`,
