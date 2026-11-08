@@ -822,6 +822,14 @@ function loadLib(url, globalName) {
     document.head.appendChild(sc);
   });
 }
+// File chips in rendered markdown: click opens the preview popup.
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest(".filechip");
+  if (!chip) return;
+  e.preventDefault();
+  const pid = $("#project-picker")?.value;
+  previewFile(chip.dataset.file, chip.dataset.file.split("/").pop(), pid);
+});
 $("#pv-download").onclick = () => { if (pvUrl) location.href = pvUrl; };
 $("#pv-pdf").onclick = () => { $("#preview-modal").classList.add("printing"); window.print(); setTimeout(() => $("#preview-modal").classList.remove("printing"), 500); };
 $("#pv-close").onclick = () => { $("#preview-modal").hidden = true; };

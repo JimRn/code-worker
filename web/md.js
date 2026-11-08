@@ -24,7 +24,9 @@ export function mdToHtml(text) {
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
     // link URL: http/https only, quotes excluded by charset so href cannot be
     // broken out of; url is already-escaped text (no second escape).
-    .replace(/\[([^\]]+)\]\((https?:[^)\s"']+)\)/g, (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`);
+    .replace(/\[([^\]]+)\]\((https?:[^)\s"']+)\)/g, (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`)
+    // Workspace file paths (outputs/x.md, snake.html, docs/y.txt) as clickable chips.
+    .replace(/(?<![\w"'>])((?:[\w.\-一-鿿]+\/)*[\w.\-一-鿿]+\.(?:md|html|htm|txt|pdf|xlsx?|docx|pptx?|log|json|png|jpg|jpeg|gif|webp))(?!<)(?=[\s'")\]]|$)/g, (_, f) => `<code class="filechip" data-file="${f}" tabindex="0">${f}</code>`);
   const lines = html.split("\n");
   let out = "", inList = false, inTable = false, firstRow = false;
   const tableRow = (line, tag) =>
