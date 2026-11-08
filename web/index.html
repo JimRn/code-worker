@@ -14,7 +14,8 @@
     <select id="agent-picker" title="选择 Agent 专家（可选）"><option value="">（默认 Agent）</option></select>
     <span class="row"><button id="new-agent" type="button" title="创建 Agent">+ Agent</button><button id="del-agent" type="button" title="删除选中 Agent 定义">删除</button></span>
     <div id="agent-dialog" hidden>
-      <label>名称 <input id="ag-name" placeholder="如 code-reviewer"></label>
+      <label>名称（下拉选项目 agents/ 下已有文件夹，或直接输入新建）
+        <span class="row"><select id="ag-folder"></select><input id="ag-name" placeholder="如 code-reviewer"></span></label>
       <label>描述 <input id="ag-desc" placeholder="职责一句话"></label>
       <div class="tools-checks">
         <span>工具白名单（勾选允许的；全不选=不限制）</span>

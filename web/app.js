@@ -325,7 +325,28 @@ async function refreshUsage() {
   const lines = Object.entries(u.byAgent ?? {}).map(([n, t]) => `${n}: ${t.total} tokens（缓存命中 ${t.hitRate}%）`);
   $("#usage-panel").textContent = u.total?.total ? `用量 ${u.total.total} tokens · ${lines.join(" · ")}` : "";
 }
-$("#new-agent").onclick = () => { $("#agent-dialog").hidden = !$("#agent-dialog").hidden; };
+$("#new-agent").onclick = async () => {
+  $("#agent-dialog").hidden = !$("#agent-dialog").hidden;
+  if (!$("#agent-dialog").hidden) {
+    const pid = $("#project-picker").value;
+    $("#ag-folder").innerHTML = `<option value="">（新建文件夹）</option>`;
+    if (pid) {
+      const { folders } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/agent-folders`))).json();
+      $("#ag-folder").innerHTML += folders.map((f) => `<option>${escAttr(f)}</option>`).join("");
+    }
+    $("#ag-name").value = "";
+  }
+};
+$("#ag-folder").onchange = async () => {
+  const name = $("#ag-folder").value;
+  if (!name) return;
+  $("#ag-name").value = name;
+  // Prefill from existing AGENTS.md if present.
+  const pid = $("#project-picker").value;
+  const { agents } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/agents`))).json();
+  const found = agents.find((a) => a.name === name);
+  if (found) { $("#ag-desc").value = found.description; $("#ag-body").value = ""; }
+};
 $("#cancel-agent").onclick = () => { $("#agent-dialog").hidden = true; };
 $("#save-agent").onclick = async () => {
   const pid = $("#project-picker").value;

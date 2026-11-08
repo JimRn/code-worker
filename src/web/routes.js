@@ -55,6 +55,15 @@ export function registerProjectRoutes(app) {
       sendJson(res, 201, createAgent(projects(), m[1], body));
     } catch (err) { sendJson(res, 400, { error: err.message }); }
   });
+  app.route("GET", /^\/api\/projects\/([\w-]+)\/agent-folders$/, async (req, res, m) => {
+    const project = projects().get(m[1]);
+    if (!project) return sendJson(res, 404, { error: "project not found" });
+    const { readdirSync: rd, existsSync: ex } = await import("node:fs");
+    const { join: j } = await import("node:path");
+    const dir = j(project.dir, "agents");
+    const folders = ex(dir) ? rd(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name) : [];
+    sendJson(res, 200, { folders });
+  });
   app.route("DELETE", /^\/api\/projects\/([\w-]+)\/agents\/([\w.\-]+)$/, async (req, res, m) => {
     try {
       const { deleteAgent } = await import("../agents.js");

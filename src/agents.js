@@ -33,10 +33,12 @@ export function createAgent(projects, projectId, { name, description, body, tool
   if (!safe) throw new Error("agent name is required");
   if (!description?.trim()) throw new Error("agent description is required");
   const dir = join(p.dir, "agents", safe);
-  if (existsSync(join(dir, "AGENTS.md"))) throw new Error(`Agent already exists: ${safe}`);
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true }); // upsert: selecting an existing folder edits it
   const fm = `---\nname: ${safe}\ndescription: ${description.trim()}${tools?.length ? `\ntools: ${tools.join(", ")}` : ""}\n---\n`;
-  writeFileSync(join(dir, "AGENTS.md"), fm + (body?.trim() || "You are a specialist agent."));
+  const existing = cachedRead(join(dir, "AGENTS.md"));
+  // Upsert: keep existing body when the dialog left it blank (folder-preload case).
+  const finalBody = body?.trim() || (existing ? parseFrontmatter(existing).body : "You are a specialist agent.");
+  writeFileSync(join(dir, "AGENTS.md"), fm + finalBody);
   return { name: safe, description: description.trim() };
 }
 
