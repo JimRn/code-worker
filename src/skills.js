@@ -4,7 +4,6 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { defaultFileCache } from "./file-cache.js";
-import { sessionScope } from "./session.js";
 import { isInBlockedDir } from "./policy.js";
 import { parseFrontmatter } from "./frontmatter.js";
 export { parseFrontmatter }; // back-compat re-export (tests import from here)
@@ -50,7 +49,7 @@ export function loadSkill(projects, projectId, name, resource) {
 export function installSkills(ctx) {
   const cache = ctx.get("fileCache") ?? defaultFileCache;
   ctx.on("system-prompt/assemble", async (base, next) => {
-    const session = sessionScope.getStore();
+    const session = ctx.get("sessionScope")?.getStore();
     const index = skillIndex(ctx.get("projects"), session?.binding?.projectId, cache);
     if (!index.length) return next(base);
     const lines = index.map((s) => `- ${s.name}: ${s.description}`).join("\n");

@@ -2,7 +2,6 @@
 // Vertical features live in plugins (compaction, project isolation, title
 // generator) and act through events — the loop never calls them directly.
 // Model/provider selection comes solely from ctx "modelConfig".
-import { sessionScope } from "./session.js";
 export class AgentLoop {
   constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, modelConfig, model } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
@@ -20,7 +19,7 @@ export class AgentLoop {
     const isolate = ctx.get("isolate") ?? ((_s, fn) => fn());
     let turnState = "RUNNING";
     try {
-      return await isolate(session, () => sessionScope.run(session, async () => {
+      return await isolate(session, () => session.store.scope.run(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
       const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");

@@ -545,6 +545,36 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+// --- Web terminal (PTY via /api/terminals) ---
+let termId = null;
+async function termEnsure() {
+  if (termId) return termId;
+  const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+  termId = r.id;
+  return termId;
+}
+$("#toggle-terminal").onclick = async () => {
+  $("#terminal-panel").hidden = !$("#terminal-panel").hidden;
+  if (!$("#terminal-panel").hidden) {
+    $("#file-panel").hidden = true; $("#usage-panel-right").hidden = true; $("#trash-panel").hidden = true;
+    await termEnsure();
+    $("#term-cmd").focus();
+  }
+};
+$("#tp2-close").onclick = () => { $("#terminal-panel").hidden = true; };
+async function termSend() {
+  const cmd = $("#term-cmd").value.trim();
+  if (!cmd) return;
+  $("#term-cmd").value = "";
+  $("#term-out").textContent += `\n$ ${cmd}\n`;
+  const id = await termEnsure();
+  const r = await (await fetch(api(`/terminals/${encodeURIComponent(id)}/send`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ command: cmd }) })).json();
+  $("#term-out").textContent += r.output ?? r.error ?? "";
+  $("#term-out").scrollTop = $("#term-out").scrollHeight;
+}
+$("#term-send").onclick = () => termSend();
+$("#term-cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") termSend(); });
+
 $("#usage-chip").onclick = () => {
   $("#usage-panel-right").hidden = !$("#usage-panel-right").hidden;
   if (!$("#usage-panel-right").hidden) { $("#file-panel").hidden = true; $("#trash-panel").hidden = true; refreshUsage(); }

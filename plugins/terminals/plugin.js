@@ -5,6 +5,9 @@ export const plugin = {
   name: "terminals",
   deps: [],
   apply(ctx) {
-    ctx.provide("terminals", new TerminalService());
+    const svc = new TerminalService();
+    ctx.provide("terminals", svc);
+    ctx.effect(() => () => svc.closeAll()); // kill every PTY on dispose
   },
 };
+export default plugin;

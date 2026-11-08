@@ -6,8 +6,8 @@ import { randomUUID } from "node:crypto";
 import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usageTotals as deriveUsageTotals } from "./session-views.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-/** Per-turn live session scope (replaces the mutable ctx.currentSession slot). */
-export const sessionScope = new AsyncLocalStorage();
+/** Per-turn live session scope lives on each SessionStore instance
+ * (store.scope), never a module singleton — two boots never cross. */
 
 export const SESSION_FORMAT_VERSION = 1;
 
@@ -30,9 +30,13 @@ export class SessionStore {
     mkdirSync(homeDir, { recursive: true });
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
     this.eventTypes = new Set(SESSION_EVENTS);
+    this.projectionHandlers = new Map(); // feature event type -> fold(state, ev)
+    this.scope = new AsyncLocalStorage(); // per-turn live session
   }
   /** Plugins register their durable event types here (fail-loud append gate). */
   registerEventType(type) { this.eventTypes.add(type); return () => this.eventTypes.delete(type); }
+  /** Plugins register message-projection folds (e.g. compaction/summary reset). */
+  registerProjection(type, handler) { this.projectionHandlers.set(type, handler); return () => this.projectionHandlers.delete(type); }
   /** Lightweight list: binding from meta.json + title from last lines (no full open). */
   listLight() {
     if (!existsSync(this.homeDir)) return [];
@@ -154,21 +158,16 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
-  /** Capability-scoped todo write: the ONLY write tools may perform on the log. */
-  async writeTodos(todos) {
-    const prev = this.todos();
-    if (JSON.stringify(prev) === JSON.stringify(todos)) return false; // no-change: skip append
-    await this.append("todo/write", { todos });
-    return true;
-  }
   // Derived views delegate to session-views.js (Session only appends).
+  // Todo writes live in the todo plugin (it owns the todo/write event type);
+  // the core Session only appends events it has been told about.
   todos() { return deriveMessagesTodos(this.events); }
   usageTotals() { return deriveUsageTotals(this.events); }
   title() { return deriveTitle(this.events); }
   deriveMessages() {
     // Incremental invalidation: reuse the projection until append changes length.
     if (this._derivedAt !== this.events.length) {
-      this._derived = deriveMessages(this.events);
+      this._derived = deriveMessages(this.events, this.store.projectionHandlers);
       this._derivedAt = this.events.length;
     }
     return this._derived;

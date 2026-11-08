@@ -8,3 +8,4 @@ export const plugin = {
     registerTerminalTools(ctx);
   },
 };
+export default plugin;

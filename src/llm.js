@@ -6,11 +6,12 @@ export class LlmService {
     this.adapters.set(name, adapter);
     return () => this.adapters.delete(name);
   }
-  /** Bind an adapter before any system/user commit (cancellation there commits nothing). */
-  prepareCall({ provider = "openai-compatible", model, messages, tools = [] }) {
+  /** Bind an adapter before any system/user commit (cancellation there commits nothing).
+   * `signal` is forwarded so loop cancellation reaches the wire (fetch). */
+  prepareCall({ provider = "openai-compatible", model, messages, tools = [], signal }) {
     const adapter = this.adapters.get(provider);
     if (!adapter) throw new Error(`Unknown LLM provider: ${provider}`);
-    return adapter.prepareCall({ model, messages, tools });
+    return adapter.prepareCall({ model, messages, tools, signal });
   }
 }
 

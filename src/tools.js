@@ -28,8 +28,9 @@ export class ToolRegistry {
     for (const call of calls) {
       const tool = this.tools.get(call.name);
       if (!tool) { results.push({ callId: call.id, name: call.name, output: `Error: unknown tool ${call.name}`, isError: true }); continue; }
-      // Narrow capability: tools get appendTodo only, never the live Session.
-      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, appendTodo: session ? (todos) => session.writeTodos(todos) : undefined };
+      // Narrow capability: tools get appendTodo only (built by the todoWriter factory), never the live Session.
+      const todoWriter = this.ctx.get("todoWriter");
+      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, appendTodo: session && todoWriter ? todoWriter(session) : undefined };
       req = await this.ctx.waterfall("tools/pre-execute", req);
       if (req.denied) { results.push({ callId: call.id, name: call.name, output: `Denied: ${req.denied}`, isError: true }); continue; }
       let output;

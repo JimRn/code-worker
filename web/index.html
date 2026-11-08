@@ -70,6 +70,7 @@
         <button type="button" data-view="trace">轨迹</button>
       </div>
       <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
+      <button id="toggle-terminal" type="button" title="终端面板">⌨ 终端</button>
       <button id="usage-chip" type="button" title="当前 Project Token 用量（点击看明细）"></button>
       <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
@@ -122,6 +123,11 @@
     <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
     <ul id="fp-list"></ul>
     <pre id="fp-preview" hidden></pre>
+  </aside>
+  <aside id="terminal-panel" hidden>
+    <div class="fp-tab">⌨ 终端 <button id="tp2-close" type="button" title="关闭">✕</button></div>
+    <pre id="term-out"></pre>
+    <div class="term-input-row"><input id="term-cmd" placeholder="输入命令，回车执行"><button id="term-send" type="button">发送</button></div>
   </aside>
   <aside id="usage-panel-right" hidden>
     <div class="fp-tab">📊 用量 <button id="up-close" type="button" title="关闭">✕</button></div>

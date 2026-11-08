@@ -6,7 +6,6 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { join } from "node:path";
 import { defaultFileCache } from "./file-cache.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import { sessionScope } from "./session.js";
 
 /** List agents of a project: [{name, description}]. */
 export function agentList(projects, projectId, cache = defaultFileCache) {
@@ -66,7 +65,7 @@ export function loadAgent(projects, projectId, name, cache = defaultFileCache) {
 export function installAgents(ctx) {
   const cache = ctx.get("fileCache") ?? defaultFileCache;
   ctx.on("system-prompt/assemble", async (base, next) => {
-    const session = sessionScope.getStore();
+    const session = ctx.get("sessionScope")?.getStore();
     const agentName = session?.binding?.agent;
     if (!agentName) return next(base);
     const agent = loadAgent(ctx.get("projects"), session.binding.projectId, agentName, cache);
@@ -79,7 +78,7 @@ export function installAgents(ctx) {
   // Binding comes from the explicit req payload (loop-supplied), never from
   // reopening the session store inside the guard.
   ctx.on("tools/pre-execute", async (req, next) => {
-    const binding = req.binding ?? sessionScope.getStore()?.binding ?? null;
+    const binding = req.binding ?? ctx.get("sessionScope")?.getStore()?.binding ?? null;
     if (!binding?.agent || binding.agent === "default") return next(req); // default agent: unrestricted
     const agent = loadAgent(ctx.get("projects"), binding.projectId, binding.agent, cache);
     if (!agent) { req.denied = `agent ${binding.agent} not found`; return next(req); }

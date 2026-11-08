@@ -1,5 +1,7 @@
 import { SessionStore } from "../../src/session.js";
 export const plugin = { name: "session", deps: [], apply(ctx, env) {
-  ctx.provide("sessions", new SessionStore(env.home ?? ".code-worker/sessions"));
+  const store = new SessionStore(env.home ?? ".code-worker/sessions");
+  ctx.provide("sessions", store);
+  ctx.provide("sessionScope", store.scope);
 } };
 export default plugin;

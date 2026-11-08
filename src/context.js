@@ -4,6 +4,7 @@ import { shouldWrap, wrapService } from "./service-definitions.js";
 export class Context {
   constructor() {
     this.services = new Map();
+    this._raw = new Map();
     this.listeners = new Map(); // event -> [{fn, mode}]
     this.effects = []; // disposers, LIFO on dispose
     this.disposed = false;
@@ -12,15 +13,21 @@ export class Context {
    * Known services are stored behind their capability view (service-definitions). */
   provide(key, service) {
     const prev = this.services.get(key);
+    const prevRaw = this._raw.get(key);
     this.services.set(key, shouldWrap(key, service) ? wrapService(key, service) : service);
+    this._raw.set(key, service);
     const dispose = () => {
-      if (prev) this.services.set(key, prev);
-      else this.services.delete(key);
+      if (prev) { this.services.set(key, prev); this._raw.set(key, prevRaw); }
+      else { this.services.delete(key); this._raw.delete(key); }
     };
     this.effects.push(dispose);
     return dispose;
   }
   get(key) { return this.services.get(key); }
+  /** Internal-only: underlying service instance bypassing the capability view.
+   * For plugin apply-time wiring (e.g. reading model-config inputs); consumers
+   * must use get()/require(). */
+  raw(key) { return this._raw.get(key); }
   require(key) {
     const s = this.services.get(key);
     if (!s) throw new Error(`Missing required service: ctx.${key} (misconfiguration fails loud)`);

@@ -1,32 +1,19 @@
 // Session views: pure projections over the event log (todo/title/usage/messages).
 // Session itself only appends; all derived state lives here.
 //
-// Projection handlers: feature event types (e.g. compaction/summary) register
-// a handler here that folds the event into the message projection. Core knows
-// the message shapes, feature plugins own their fold. A handler receives
-// (state, ev) and returns true when it consumed the event.
-export const projectionHandlers = new Map();
-export function registerProjection(type, handler) { projectionHandlers.set(type, handler); return () => projectionHandlers.delete(type); }
-
-function handleCompactionSummary(state, ev) {
-  state.msgs.length = 0;
-  state.systemTexts.length = 0;
-  state.knownCalls.clear();
-  state.systemTexts.push(`[Earlier conversation summarized]\n${ev.data.text}`);
-  return true;
-}
-// Default registration keeps back-compat for logs containing summaries even
-// when the compaction plugin is not loaded; the plugin re-registers it.
-registerProjection("compaction/summary", handleCompactionSummary);
-
+// Projection handlers live per-SessionStore (store.registerProjection).
+// Feature plugins register their fold (e.g. compaction/summary reset) on
+// the store at apply time; core keeps only the message shapes. When the
+// owning plugin is absent, a summary event projects as an ordinary event
+// (documented degradation) — the handler is gone with the plugin.
 /** Project model history; after compaction/summary only summary + later events show. */
-export function deriveMessages(events) {
+export function deriveMessages(events, handlers = new Map()) {
   const msgs = [];
   const knownCalls = new Set(); // assistant tool_call ids seen (orphan tool results dropped)
   const systemTexts = []; // system messages hoisted to the front (strict providers reject late system)
   const state = { msgs, systemTexts, knownCalls };
   for (const ev of events) {
-    const handler = projectionHandlers.get(ev.type);
+    const handler = handlers.get(ev.type);
     if (handler && handler(state, ev)) continue;
     if (ev.type === "system/message") systemTexts.push(ev.data.text); // hoisted below
     else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });

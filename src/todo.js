@@ -18,9 +18,21 @@ export function validateTodos(todos) {
   });
 }
 
-/** Consumer: registers the todo_write tool on ctx.tools. */
+/** Narrow write capability factory: the ONLY way tools write todos.
+ * Lives here (todo-owned) so core Session never knows the todo/write type. */
+export function createTodoWriter(session) {
+  return async (todos) => {
+    const prev = session.todos();
+    if (JSON.stringify(prev) === JSON.stringify(todos)) return false; // no-change: skip append
+    await session.append("todo/write", { todos });
+    return true;
+  };
+}
+
+/** Consumer: registers the todo_write tool on ctx.tools + provides the writer factory. */
 export function registerTodoTools(ctx) {
   const tools = ctx.require("tools");
+  ctx.provide("todoWriter", createTodoWriter);
   ctx.effect(() => tools.register({
     name: "todo_write",
     description: "Replace the session todo list (whole-list snapshot). Call at task start and update statuses as you work.",
