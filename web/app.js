@@ -216,7 +216,12 @@ function openStream(id) {
   currentTurn = null;
   stream = new EventSource(api(`/sessions/${id}/stream`));
   stream.onopen = () => { $("#conn").textContent = "● 已连接"; $("#conn").style.color = "#3fb950"; };
-  stream.onerror = () => { $("#conn").textContent = "○ 连接中断，重试中…"; $("#conn").style.color = "#d29922"; };
+  stream.onerror = () => {
+    $("#conn").textContent = "○ 连接中断，重试中…"; $("#conn").style.color = "#d29922";
+    // Disconnect mid-turn: clear stuck thinking/lock (replay on reconnect resyncs).
+    hideThinking();
+    sending = false;
+  };
   stream.onmessage = (e) => {
     const ev = JSON.parse(e.data);
     if (ev.type === "turn/start") $("#status").textContent = "运行中…";
@@ -490,8 +495,12 @@ function showThinking() {
   t.innerHTML = `<span class="dots"><span>.</span><span>.</span><span>.</span></span> 正在思考…`;
   box.appendChild(t);
   box.scrollTop = box.scrollHeight;
+  t._failsafe = setTimeout(hideThinking, 90000); // never stick forever
 }
-function hideThinking() { document.getElementById("thinking")?.remove(); }
+function hideThinking() {
+  const el = document.getElementById("thinking");
+  if (el) { clearTimeout(el._failsafe); el.remove(); }
+}
 
 // --- Trace view (DeepSeek-style): timeline + compact rows + detail panel ---
 let viewMode = "chat";
