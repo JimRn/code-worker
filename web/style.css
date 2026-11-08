@@ -71,7 +71,8 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #terminal-view[hidden] { display:none; }
 #xterm-holder { flex:1; min-height:0; padding:6px; }
 #xterm-holder .xterm { height:100%; }
-#terminal-view .term-bar { padding:6px 10px; color:#8b949e; font-size:12px; border-bottom:1px solid #21262d; }
+#terminal-view .term-bar { padding:6px 10px; color:#8b949e; font-size:12px; border-bottom:1px solid #21262d; display:flex; align-items:center; }
+#terminal-view .term-bar .spacer { flex:1; }
 #usage-panel-right { width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #usage-panel-right[hidden] { display:none; }
 #usage-detail { padding:12px; overflow:auto; }

@@ -529,7 +529,7 @@ let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
 // --- Web terminal: xterm.js + WebSocket to PTY (PuTTY-like) ---
 let termWs = null, termXterm = null, termFit = null;
-let termId = null;
+let termId = null, termProjectId = null; // reuse the PTY only within the same project
 function termOpenWs() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${proto}//${location.host}/api/terminals/${encodeURIComponent(termId)}/ws${TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ""}`;
@@ -539,13 +539,26 @@ function termOpenWs() {
   // SAME PTY (no orphan PTY + lost scrollback from a fresh POST).
   termWs.onclose = () => { termWs = null; };
 }
+async function termClose() {
+  // Close the connection and its PTY; next activation creates a fresh one.
+  try { termWs?.close(); } catch { /* already closed */ }
+  termWs = null;
+  if (termId) { try { await fetch(api(`/terminals/${encodeURIComponent(termId)}`), { method: "DELETE" }); } catch { /* PTY already gone */ } }
+  termId = null; termProjectId = null;
+  try { termXterm?.dispose(); } catch { /* not yet created */ }
+  termXterm = null; termFit = null;
+  $("#xterm-holder").innerHTML = "";
+}
 async function termConnect() {
   if (typeof Terminal === "undefined" || typeof FitAddon === "undefined") {
-    $("#xterm-holder").textContent = "xterm.js failed to load (CDN unreachable?). Check network and refresh.";
+    if (!termXterm) $("#xterm-holder").textContent = "xterm.js failed to load (CDN unreachable?). Check network and refresh.";
     return;
   }
+  const proj = $("#project-picker")?.value || null;
+  // Different project than the live terminal: tear it down and start fresh.
+  if (termId && termProjectId !== proj) await termClose();
   if (!termId) {
-    const proj = $("#project-picker")?.value;
+    termProjectId = proj;
     const r = await (await fetch(api("/terminals"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cwdSessionId: currentId || undefined, projectId: proj || undefined }) })).json();
     termId = r.id;
     termXterm = new Terminal({ cursorBlink: true, scrollback: 5000, theme: { background: "#0d1117" } });
@@ -559,7 +572,8 @@ async function termConnect() {
   }
   termOpenWs();
 }
-// Terminal button only shows when the terminals plugin is loaded.
+$("#term-close").onclick = async () => { await termClose(); };
+// Terminal tab only shows when the terminals plugin is loaded.
 (async () => {
   const s = await (await fetch(api("/settings"))).json().catch(() => ({}));
   if (!s.capabilities?.terminal) $("#tab-terminal").style.display = "none";

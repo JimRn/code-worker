@@ -361,6 +361,10 @@ export function registerTerminalRoutes(app) {
       sendJson(res, 200, { output: out });
     } catch (err) { sendJson(res, 404, { error: err.message }); }
   });
+  app.route("DELETE", /^\/api\/terminals\/([\w-]+)$/, async (req, res, m) => {
+    try { await terminals().close(m[1], "web"); return sendJson(res, 200, { ok: true }); }
+    catch (err) { return sendJson(res, 404, { error: err.message }); }
+  });
   app.route("GET", /^\/api\/terminals\/([\w-]+)$/, async (req, res, m, url) => {
     try {
       sendJson(res, 200, { output: terminals().read(m[1], url.searchParams.get("sessionId") ?? "web") });
