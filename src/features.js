@@ -2,7 +2,6 @@
 // project isolation, title generation, compaction service.
 import { pruneToolResults, estimateChars, summarizeMessages } from "./compaction.js";
 import { EV } from "./events.js";
-import { DEFAULT_PROVIDER } from "./model-config.js";
 
 /** Compaction service: prune (model-free) + summarize when over budget. */
 export class CompactionService {
@@ -85,7 +84,7 @@ export function installTitleGenerator(ctx) {
     if (!firstUser) return;
     try {
       const bound = ctx.require("llm").prepareCall({
-        provider: ctx.get("modelConfig")?.provider ?? DEFAULT_PROVIDER,
+        provider: ctx.get("modelConfig")?.provider,
         messages: [
           { role: "system", content: "Reply with a short session title (max 8 words, no quotes, same language as the user). Title only." },
           { role: "user", content: firstUser.data.text },

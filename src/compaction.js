@@ -2,8 +2,6 @@
 // 1) Prune: model-free truncation of old tool results (always on, cheap first).
 // 2) Summarize: when context exceeds budget, LLM-summarize old turns into one
 //    durable compaction/summary event; history after it is what the model sees.
-import { DEFAULT_PROVIDER } from "./model-config.js";
-
 const MARKER = "\n…[pruned]…\n";
 
 /** Truncate tool results older than the last `keepLast` ones. Pure, model-free. */
@@ -26,7 +24,7 @@ export function estimateChars(messages) {
 export async function summarizeMessages(ctx, messages, { prompt = "Summarize this conversation for continued work. Keep facts, decisions, file paths, and open tasks. Be concise." } = {}) {
   const transcript = messages.map((m) => `${m.role}: ${m.content}`).join("\n").slice(0, 20000);
   const bound = ctx.require("llm").prepareCall({
-    provider: ctx.get("modelConfig")?.provider ?? DEFAULT_PROVIDER,
+    provider: ctx.get("modelConfig")?.provider,
     messages: [{ role: "system", content: prompt }, { role: "user", content: transcript }],
     tools: [],
   });

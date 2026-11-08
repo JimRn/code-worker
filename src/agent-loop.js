@@ -3,13 +3,12 @@
 // generator) and act through events — the loop never calls them directly.
 // Model/provider selection comes solely from ctx "modelConfig".
 import { EV } from "./events.js";
-import { DEFAULT_PROVIDER } from "./model-config.js";
 export class AgentLoop {
   constructor(ctx, { maxSteps = 8, toolResultMaxBytes = 20000, modelConfig, model } = {}) {
     this.ctx = ctx; this.maxSteps = maxSteps; this.toolResultMaxBytes = toolResultMaxBytes;
     this.modelConfig = modelConfig; this.model = model;
   }
-  get provider() { return this.modelConfig?.provider ?? DEFAULT_PROVIDER; }
+  get provider() { return this.modelConfig?.provider ?? this.ctx.get("modelConfig")?.provider; }
   currentModel() { return this.modelConfig?.model ?? this.model; }
   async runTurn(session, userText, { onText, model, signal } = {}) {
     const ctx = this.ctx;
