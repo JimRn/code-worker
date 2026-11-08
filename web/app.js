@@ -62,6 +62,7 @@ function renderEvent(ev) {
     return;
   }
   if (ev.type === "turn/end") {
+    hideThinking();
     // Any tool block still without output means the turn died mid-tool: mark it.
     currentTurn?.el.querySelectorAll(".tool-block").forEach((b) => {
       if (!b.querySelector(".tb-out").textContent) b.querySelector(".tb-out").textContent = "(未完成：轮次中断)";
@@ -142,6 +143,7 @@ function renderEvent(ev) {
   }
   // Live stream chunk: re-render markdown incrementally (removed when the durable message lands).
   if (ev.type === "assistant/chunk") {
+    hideThinking();
     // Inside the current turn group (visual grouping closes on fold).
     let bubble = currentTurn?.el.querySelector(".streaming");
     if (!bubble) {
@@ -334,6 +336,9 @@ $("#composer").onsubmit = async (e) => {
   const text = $("#input").value.trim();
   if (!text || !currentId) return;
   $("#input").value = "";
+  // Acknowledge immediately: thinking indicator in the chat (user bubble
+  // arrives right after via SSE turn/start + user/message).
+  showThinking();
   $("#status").textContent = "运行中…";
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
@@ -391,6 +396,19 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+
+// Thinking indicator: shown the moment a message is sent, removed when the
+// first assistant content (or turn end) arrives.
+function showThinking() {
+  const box = $("#messages");
+  const t = document.createElement("div");
+  t.id = "thinking";
+  t.className = "msg assistant thinking";
+  t.innerHTML = `<span class="dots"><span>.</span><span>.</span><span>.</span></span> 正在思考…`;
+  box.appendChild(t);
+  box.scrollTop = box.scrollHeight;
+}
+function hideThinking() { document.getElementById("thinking")?.remove(); }
 
 // --- Trace view (DeepSeek-style): timeline + compact rows + detail panel ---
 let viewMode = "chat";
