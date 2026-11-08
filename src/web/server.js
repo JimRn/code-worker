@@ -118,7 +118,28 @@ export function createWebServer({ ctx, store, approval, token }) {
         const s = store.create(binding);
         return sendJson(res, 201, { id: s.id });
       }
+      // trash: list/restore/purge per project
+      const tm = url.pathname.match(/^\/api\/projects\/([\w-]+)\/trash(?:\/([\w-]+)\/(restore|purge))?$/);
+      if (tm) {
+        if (!tm[2] && req.method === "GET") return sendJson(res, 200, { trash: store.listTrash(tm[1]) });
+        if (tm[3] === "restore" && req.method === "POST") {
+          try { store.restore(tm[1], tm[2]); return sendJson(res, 200, { ok: true }); }
+          catch (err) { return sendJson(res, 404, { error: err.message }); }
+        }
+        if (tm[3] === "purge" && req.method === "DELETE") {
+          try {
+            const { rmSync: rm } = await import("node:fs");
+            const { join: j2 } = await import("node:path");
+            rm(j2(store.projectsDir, tm[1], "trash", tm[2]), { recursive: true, force: true });
+            return sendJson(res, 200, { ok: true });
+          } catch (err) { return sendJson(res, 500, { error: err.message }); }
+        }
+      }
       const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(stream|turn|compact|export))?$/);
+      if (m && req.method === "DELETE" && !m[2]) {
+        try { store.softDelete(m[1]); return sendJson(res, 200, { ok: true }); }
+        catch (err) { return sendJson(res, 404, { error: err.message }); }
+      }
       if (m) {
         const session = store.open(m[1]);
         if (!m[2] && req.method === "GET") {

@@ -9,6 +9,14 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #session-list { list-style:none; margin:0; padding:0; overflow:auto; flex:1; }
 #session-list li { padding:6px 8px; border-radius:6px; cursor:pointer; color:var(--muted); }
 #session-list li.active { background:#1f6feb33; color:var(--text); }
+#session-list li { display:flex; align-items:center; gap:6px; }
+.sl-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sl-del { background:transparent; border:0; color:var(--muted); cursor:pointer; font-size:12px; flex:none; }
+.sl-del:hover { color:#f85149; }
+#trash { border-top:1px solid var(--line); padding-top:8px; }
+#trash-list { list-style:none; margin:6px 0 0; padding:0; }
+#trash-list li { padding:3px 6px; font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+#trash-list button { background:transparent; border:0; color:var(--accent); cursor:pointer; font-size:11px; }
 .approve { color:var(--muted); font-size:12px; display:flex; gap:6px; align-items:center; }
 .status { color:var(--muted); font-size:12px; }
 #main { flex:1; display:flex; flex-direction:column; min-width:0; }

@@ -237,8 +237,21 @@ async function refreshSessions() {
   if (pid) params.set("projectId", pid);
   if (ag) params.set("agent", ag);
   const { sessions } = await (await fetch(api(`/sessions${params.toString() ? `?${params}` : ""}`))).json();
-  $("#session-list").innerHTML = sessions.map((s) => `<li data-id="${escAttr(s.id)}" class="${s.id === currentId ? "active" : ""}">${esc(s.title || s.id)}</li>`).join("");
-  document.querySelectorAll("#session-list li").forEach((li) => li.onclick = () => selectSession(li.dataset.id));
+  $("#session-list").innerHTML = sessions.map((s) =>
+    `<li data-id="${escAttr(s.id)}" class="${s.id === currentId ? "active" : ""}"><span class="sl-title">${esc(s.title || s.id)}</span><button class="sl-del" title="删除（移入回收站）">✕</button></li>`).join("");
+  document.querySelectorAll("#session-list li").forEach((li) => (li.onclick = (e) => {
+    if (e.target.classList.contains("sl-del")) return;
+    selectSession(li.dataset.id);
+  }));
+  document.querySelectorAll(".sl-del").forEach((b) => (b.onclick = async (e) => {
+    e.stopPropagation();
+    const id = b.closest("li").dataset.id;
+    if (!confirm(`删除会话 ${id}？将移入回收站（可恢复），不是彻底删除。`)) return;
+    await fetch(api(`/sessions/${id}`), { method: "DELETE" });
+    if (currentId === id) { currentId = null; stream?.close(); $("#messages").innerHTML = ""; }
+    refreshSessions();
+    refreshTrash();
+  }));
   // If the current session is not in this project's list, switch to the first one.
   if (currentId && !sessions.some((s) => s.id === currentId)) {
     if (sessions[0]) selectSession(sessions[0].id);
@@ -316,6 +329,25 @@ $("#add-repo").onclick = async () => {
   await fetch(api(`/projects/${encodeURIComponent(pid)}/repos`), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   refreshProjects();
 };
+async function refreshTrash() {
+  const pid = $("#project-picker").value;
+  $("#trash-list").innerHTML = "";
+  if (!pid) return;
+  const { trash } = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/trash`))).json();
+  $("#trash-list").innerHTML = trash.map((t) =>
+    `<li>${esc(t.title || t.id)} <button data-restore="${escAttr(t.id)}" title="恢复">恢复</button><button data-purge="${escAttr(t.id)}" title="彻底删除">彻底删除</button></li>`).join("");
+  document.querySelectorAll("[data-restore]").forEach((b) => (b.onclick = async () => {
+    await fetch(api(`/projects/${encodeURIComponent(pid)}/trash/${encodeURIComponent(b.dataset.restore)}/restore`), { method: "POST" });
+    refreshTrash(); refreshSessions();
+  }));
+  document.querySelectorAll("[data-purge]").forEach((b) => (b.onclick = async () => {
+    if (!confirm(`彻底删除 ${b.dataset.purge}？不可恢复。`)) return;
+    await fetch(api(`/projects/${encodeURIComponent(pid)}/trash/${encodeURIComponent(b.dataset.purge)}/purge`), { method: "DELETE" });
+    refreshTrash();
+  }));
+}
+$("#refresh-trash").onclick = () => refreshTrash();
+
 async function refreshAgents() {
   const pid = $("#project-picker").value;
   $("#agent-picker").innerHTML = `<option value="">（默认 Agent）</option>`;
@@ -393,7 +425,7 @@ $("#project-picker").onchange = async () => {
     return;
   }
   wsPath = ".";
-  refreshSessions(); refreshWorkspace(); refreshAgents();
+  refreshSessions(); refreshWorkspace(); refreshAgents(); refreshTrash();
 };
 $("#agent-picker").onchange = () => {
   if ($("#agent-picker").value === "__new__") {

@@ -1,6 +1,6 @@
 // Session: append-only SessionEvent log (JSONL) — the single source of truth.
 // Invariant: Model-visible <=> Logged. Anything sent to the model is in this log.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usageTotals as deriveUsageTotals } from "./session-views.js";
@@ -21,6 +21,8 @@ export const SESSION_EVENTS = new Set([
 export class SessionStore {
   constructor(homeDir) {
     this.homeDir = homeDir;
+    // Projects live beside sessions (same home); trash is per-project.
+    this.projectsDir = join(homeDir, "..", "projects");
     mkdirSync(homeDir, { recursive: true });
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
   }
@@ -42,6 +44,40 @@ export class SessionStore {
     const s = new Session(this, id, dir);
     this.cache.set(id, s);
     return s;
+  }
+  /** Soft delete: move the session dir into its project's trash (recoverable). */
+  softDelete(id) {
+    const s = this.open(id);
+    this.cache.delete(id);
+    const binding = s.binding?.projectId ? s.binding : null;
+    if (binding) {
+      const trashDir = join(this.projectsDir, binding.projectId, "trash");
+      mkdirSync(trashDir, { recursive: true });
+      renameSync(s.dir, join(trashDir, id));
+      return trashDir;
+    }
+    // Unbound sessions: plain delete (no project to hold a trash).
+    rmSync(s.dir, { recursive: true, force: true });
+    return null;
+  }
+  /** Restore a trashed session into its project scope. */
+  restore(projectId, id) {
+    const src = join(this.projectsDir, projectId, "trash", id);
+    if (!existsSync(src)) throw new Error(`Session not in trash: ${id}`);
+    renameSync(src, join(this.homeDir, id));
+  }
+  /** List trashed sessions of a project. */
+  listTrash(projectId) {
+    const dir = join(this.projectsDir, projectId, "trash");
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .map((sid) => {
+        try {
+          const s = new Session(this, sid, join(dir, sid));
+          return { id: sid, title: s.title(), events: s.events.length };
+        } catch { return null; }
+      })
+      .filter(Boolean);
   }
 }
 
