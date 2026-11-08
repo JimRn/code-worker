@@ -92,17 +92,9 @@ export function createWebServer({ ctx, store, approval, token }) {
       if (url.pathname === "/api/sessions" && req.method === "GET") {
         const projectId = url.searchParams.get("projectId");
         const agentName = url.searchParams.get("agent");
-        const ids = existsSync(store.homeDir)
-          ? readdirSync(store.homeDir).filter((id) => {
-              try {
-                const full = join(store.homeDir, id);
-                return statSync(full).isDirectory() && readdirSync(full).some((f) => f.startsWith("session.v") || f === "meta.json");
-              } catch { return false; }
-            })
-          : [];
+        // Lightweight list: meta.json + tail title only, never full event load.
         return sendJson(res, 200, {
-          sessions: ids
-            .map((id) => { const s = store.open(id); return { id, title: s.title(), projectId: s.binding?.projectId, agent: s.binding?.agent }; })
+          sessions: store.listLight()
             .filter((s) => !projectId || s.projectId === projectId)
             .filter((s) => !agentName || s.agent === agentName),
         });

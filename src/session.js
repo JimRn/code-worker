@@ -18,6 +18,8 @@ export const SESSION_EVENTS = new Set([
   "tool/call", "tool/result", "todo/write", "session/title", "compaction/summary",
 ]);
 
+const MAX_CACHE = 50; // LRU cap for live sessions
+
 export class SessionStore {
   constructor(homeDir) {
     this.homeDir = homeDir;
@@ -25,6 +27,31 @@ export class SessionStore {
     this.projectsDir = join(homeDir, "..", "projects");
     mkdirSync(homeDir, { recursive: true });
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
+  }
+  /** Lightweight list: binding from meta.json + title from last lines (no full open). */
+  listLight() {
+    if (!existsSync(this.homeDir)) return [];
+    return readdirSync(this.homeDir)
+      .filter((id) => {
+        try {
+          const full = join(this.homeDir, id);
+          const files = readdirSync(full);
+          return files.some((f) => f.startsWith("session.v") || f === "meta.json");
+        } catch { return false; }
+      })
+      .map((id) => {
+        const full = join(this.homeDir, id);
+        const binding = existsSync(join(full, "meta.json")) ? JSON.parse(readFileSync(join(full, "meta.json"), "utf8")) : {};
+        let title = null;
+        const file = readdirSync(full).find((f) => f.startsWith("session.v"));
+        if (file) {
+          const lines = readFileSync(join(full, file), "utf8").trim().split("\n");
+          for (let i = lines.length - 1; i >= 0 && i >= lines.length - 30; i--) {
+            try { const ev = JSON.parse(lines[i]); if (ev.type === "session/title") { title = ev.data.text; break; } } catch { /* skip */ }
+          }
+        }
+        return { id, title, projectId: binding.projectId, agent: binding.agent };
+      });
   }
   create(meta = {}) {
     const id = randomUUID().slice(0, 8);
@@ -38,11 +65,20 @@ export class SessionStore {
   }
   open(id) {
     const cached = this.cache.get(id);
-    if (cached) return cached;
+    if (cached) {
+      // LRU touch: re-insert as most-recently-used.
+      this.cache.delete(id);
+      this.cache.set(id, cached);
+      return cached;
+    }
     const dir = join(this.homeDir, id);
     if (!existsSync(dir)) throw new Error(`Session not found: ${id}`);
     const s = new Session(this, id, dir);
     this.cache.set(id, s);
+    while (this.cache.size > MAX_CACHE) {
+      const oldest = this.cache.keys().next().value;
+      this.cache.delete(oldest);
+    }
     return s;
   }
   /** Soft delete: move the session dir into its project's trash (recoverable). */
@@ -124,5 +160,12 @@ export class Session {
   todos() { return deriveMessagesTodos(this.events); }
   usageTotals() { return deriveUsageTotals(this.events); }
   title() { return deriveTitle(this.events); }
-  deriveMessages() { return deriveMessages(this.events); }
+  deriveMessages() {
+    // Incremental invalidation: reuse the projection until append changes length.
+    if (this._derivedAt !== this.events.length) {
+      this._derived = deriveMessages(this.events);
+      this._derivedAt = this.events.length;
+    }
+    return this._derived;
+  }
 }
