@@ -808,6 +808,7 @@ $("#open-policies").onclick = async () => {
   const cur = await (await fetch(api("/policies"))).json().catch(() => ({}));
   $("#pol-blocked").value = (cur.blockedDirs ?? []).join("\n");
   $("#pol-guarded").value = (cur.guardedTools ?? []).join("\n");
+  $("#pol-commands").value = (cur.blockedCommands ?? []).join("\n");
   $("#policy-error").textContent = "";
   $("#policy-modal").hidden = false;
 };
@@ -816,6 +817,7 @@ $("#policy-save").onclick = async () => {
   const body = {
     blockedDirs: $("#pol-blocked").value.split("\n").map((x) => x.trim()).filter(Boolean),
     guardedTools: $("#pol-guarded").value.split("\n").map((x) => x.trim()).filter(Boolean),
+    blockedCommands: $("#pol-commands").value.split("\n").map((x) => x.trim()).filter(Boolean),
   };
   const r = await (await fetch(api("/policies"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json();
   if (r.error) { $("#policy-error").textContent = r.error; return; }

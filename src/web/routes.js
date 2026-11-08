@@ -376,7 +376,7 @@ export function registerPolicyRoutes(app) {
   if (!ctx.get("policies")) return; // capability gate
   app.route("GET", "/api/policies", async (req, res) => {
     const pol = ctx.require("policies");
-    sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded] });
+    sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded], blockedCommands: typeof pol.blockedCommands === "function" ? pol.blockedCommands() : [...(pol.blockedCommands ?? [])] });
   });
   app.route("PUT", "/api/policies", async (req, res) => {
     const body = await readBody(req);
@@ -384,10 +384,11 @@ export function registerPolicyRoutes(app) {
       const pol = ctx.require("policies");
       if (body.blockedDirs !== undefined) pol.setBlocked(body.blockedDirs);
       if (body.guardedTools !== undefined) pol.setGuarded(body.guardedTools);
+      if (body.blockedCommands !== undefined && pol.setBlockedCommands) pol.setBlockedCommands(body.blockedCommands);
       const { PolicyStore } = await import("../policy-store.js");
       const { join } = await import("node:path");
       new PolicyStore(ctx.require("settings").dir ?? join(process.cwd(), ".code-worker")).set(body);
-      sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded] });
+      sendJson(res, 200, { blockedDirs: [...pol.blocked], guardedTools: [...pol.guarded], blockedCommands: typeof pol.blockedCommands === "function" ? pol.blockedCommands() : [...(pol.blockedCommands ?? [])] });
     } catch (err) { sendJson(res, 400, { error: err.message }); }
   });
 }

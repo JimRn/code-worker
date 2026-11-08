@@ -56,6 +56,10 @@
           "terminal_send",
           "terminal_read",
           "terminal_kill"
+        ],
+        "blockedCommands": [
+          "python.*-m http\\.server",
+          "nc .*(-l|--listen)"
         ]
       }
     }
