@@ -39,12 +39,13 @@ export class OpenAICompatibleAdapter {
    * Bound call = async generator (one provider attempt, always ends with finish):
    * yields {type:"text", delta} chunks, then {type:"finish", text, toolCalls}.
    */
-  prepareCall({ model, messages, tools }) {
+  prepareCall({ model, messages, tools, signal }) {
     const { apiKey, baseUrl, model: cfgModel } = this.resolve();
     const m = model ?? cfgModel;
     const reasoningEffort = this.config?.reasoningEffort;
     const rawRetries = Number(this.config?.maxRetries ?? process.env.CW_LLM_RETRIES ?? 2);
     const maxRetries = Number.isFinite(rawRetries) ? Math.min(5, Math.max(0, Math.floor(rawRetries))) : 2;
+    // Standardized ModelEvent stream: text_delta / reasoning_delta / tool_call_delta / usage / finish
     return async function* () {
       // Retry policy (429/5xx/network) BEFORE the stream starts; once chunks
       // flow, the attempt is committed and failures surface as attempt errors.
@@ -54,6 +55,7 @@ export class OpenAICompatibleAdapter {
         try {
           res = await fetch(`${baseUrl}/chat/completions`, {
             method: "POST",
+            signal,
             headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
             body: JSON.stringify({ model: m, messages, stream: true, stream_options: { include_usage: true }, ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}), tools: tools.length ? tools : undefined, tool_choice: tools.length ? "auto" : undefined }),
           });
@@ -98,8 +100,8 @@ export class OpenAICompatibleAdapter {
           if (json.usage) usage = json.usage;
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
-          if (delta.reasoning_content) { reasoning += delta.reasoning_content; yield { type: "reasoning", delta: delta.reasoning_content }; }
-          if (delta.content) { text += delta.content; yield { type: "text", delta: delta.content }; }
+          if (delta.reasoning_content) { reasoning += delta.reasoning_content; yield { type: "reasoning_delta", text: delta.reasoning_content }; }
+          if (delta.content) { text += delta.content; yield { type: "text_delta", text: delta.content }; }
           for (const [j, tc] of (delta.tool_calls ?? []).entries()) {
             // Providers that omit `index` would collide on key `undefined`; fall back to position.
             const key = tc.index ?? j;
@@ -149,7 +151,7 @@ export class MockAdapter {
       text = `[mock] You said: ${lastUser}`;
     }
     return async function* () {
-      for (let i = 0; i < text.length; i += 8) yield { type: "text", delta: text.slice(i, i + 8) };
+      for (let i = 0; i < text.length; i += 8) yield { type: "text_delta", text: text.slice(i, i + 8) };
       yield { type: "finish", text, toolCalls };
     };
   }

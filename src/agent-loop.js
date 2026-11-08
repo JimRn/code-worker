@@ -8,12 +8,18 @@ export class AgentLoop {
     this.provider = provider; this.model = model; this.config = config; // mutable ref: Web settings live-update
   }
   currentModel() { return this.config?.model ?? this.model; }
-  async runTurn(session, userText, { onText, model } = {}) {
+  async runTurn(session, userText, { onText, model, signal } = {}) {
     const ctx = this.ctx;
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
     const compaction = ctx.get("compaction");
+    const ctl = new AbortController();
+    AgentLoop.controllers.set(session.id, ctl);
+    const effectiveSignal = signal ?? ctl.signal;
+    effectiveSignal.addEventListener("abort", () => ctl.abort());
     const isolate = ctx.get("isolate") ?? ((_s, fn) => fn());
-    return isolate(session, () => sessionScope.run(session, async () => {
+    let turnState = "RUNNING";
+    try {
+      return await isolate(session, () => sessionScope.run(session, async () => {
       await session.append("turn/start", {});
       await session.append("user/message", { text: userText });
       const systemText = await ctx.waterfall("system-prompt/assemble", "You are Code Worker, a coding agent. Use tools when needed.");
@@ -27,23 +33,26 @@ export class AgentLoop {
         const pre = await ctx.waterfall("agent/pre-step", { messages: session.deriveMessages(), modelSelection: { provider: this.provider, model: turnModel } });
         if (pre?.rejected) break;
         let messages = compaction ? compaction.prune(pre.messages) : pre.messages;
-        if (compaction) await compaction.maybeCompact(session, messages);
+        if (compaction) {
+          const tools = ctx.require("tools").schemas();
+          await compaction.maybeCompact(session, messages, systemText.length, JSON.stringify(tools).length);
+        }
         messages = session.deriveMessages();
         await session.append("step/start", { step });
         let result;
         try {
           // Stream: chunks are live-only (assistant/chunk); settlement is one durable message.
           const finalOnly = step === this.maxSteps;
-          const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: finalOnly ? [] : ctx.require("tools").schemas() });
+          const bound = ctx.require("llm").prepareCall({ provider: this.provider, model: turnModel, messages, tools: finalOnly ? [] : ctx.require("tools").schemas(), signal: effectiveSignal });
           result = { text: "", toolCalls: [] };
           for await (const chunk of bound()) {
-            if (chunk.type === "text") {
-              result.text += chunk.delta;
-              onText?.(chunk.delta);
-              session.broadcastLive("assistant/chunk", { delta: chunk.delta });
-            } else if (chunk.type === "reasoning") {
-              result.reasoning = (result.reasoning ?? "") + chunk.delta;
-              session.broadcastLive("assistant/reasoning", { delta: chunk.delta });
+            if (chunk.type === "text_delta") {
+              result.text += chunk.text;
+              onText?.(chunk.text);
+              session.broadcastLive("assistant/chunk", { delta: chunk.text });
+            } else if (chunk.type === "reasoning_delta") {
+              result.reasoning = (result.reasoning ?? "") + chunk.text;
+              session.broadcastLive("assistant/reasoning", { delta: chunk.text });
             } else if (chunk.type === "finish") {
               result = chunk;
             }
@@ -74,9 +83,26 @@ export class AgentLoop {
       }
       await ctx.serial("agent/turn-stopping", { session });
       await session.append("turn/end", {});
-      await ctx.serial("turn/ended", { session });
+      turnState = "COMPLETED";
+      await ctx.serial("turn/ended", { session, state: turnState });
       return session.deriveMessages();
-    }));
+      }));
+    } catch (err) {
+      const cancelled = signal?.aborted || err?.name === "AbortError";
+      turnState = cancelled ? "CANCELLED" : "FAILED";
+      await session.append(cancelled ? "turn/cancelled" : "turn/failed", { error: err.message, state: turnState });
+      await ctx.serial("turn/ended", { session, state: turnState });
+      throw err;
+    } finally {
+      AgentLoop.controllers.delete(session.id);
+    }
+  }
+  /** Cancel a running turn (AbortSignal wired through the LLM fetch). */
+  static controllers = new Map();
+  async cancel(sessionId) {
+    const ctl = AgentLoop.controllers.get(sessionId);
+    if (ctl) ctl.abort();
+    return Boolean(ctl);
   }
   /** agent.inject(): lands in the next admitted request as a logged user/message. */
   async inject(session, text) { return session.append("user/message", { text: `(injected) ${text}` }); }

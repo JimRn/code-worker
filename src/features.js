@@ -7,7 +7,19 @@ import { sessionScope } from "./session.js";
 export class CompactionService {
   constructor(ctx, opts = {}) {
     this.ctx = ctx;
-    this.opts = { maxContextChars: 60000, pruneBytes: 2000, keepRecent: 4, ...opts };
+    // Token budget: B = C(context) - S(system) - T(tools) - O(output reserve) - R(safety)
+    this.opts = {
+      contextWindow: 128000, outputReserve: 8000, safety: 4000, pruneBytes: 2000, keepRecent: 4, ...opts,
+    };
+  }
+  /** Rough token estimate (chars/4; CJK-heavy text underestimates, safety margin covers). */
+  static estimateTokens(messages, systemChars, toolsChars) {
+    return Math.ceil(estimateChars(messages) / 4) + Math.ceil(systemChars / 4) + Math.ceil(toolsChars / 4);
+  }
+  /** Token-budget check replacing the old fixed char threshold. */
+  overBudget(messages, systemChars = 0, toolsChars = 0) {
+    const budget = this.opts.contextWindow - this.opts.outputReserve - this.opts.safety;
+    return CompactionService.estimateTokens(messages, systemChars, toolsChars) > budget;
   }
   /** Prune old tool results in place (pure). */
   prune(messages) { return pruneToolResults(messages, { maxBytes: this.opts.pruneBytes, keepLast: this.opts.keepRecent }); }
@@ -20,9 +32,9 @@ export class CompactionService {
     await session.append("compaction/summary", { text, summarizedCount: messages.length - keep });
     return text;
   }
-  /** Auto-compact if over budget; failure degrades to a warning. */
-  async maybeCompact(session, messages) {
-    if (estimateChars(this.prune(messages)) <= this.opts.maxContextChars) return false;
+  /** Auto-compact if over token budget; failure degrades to a warning. */
+  async maybeCompact(session, messages, systemChars = 0, toolsChars = 0) {
+    if (!this.overBudget(this.prune(messages), systemChars, toolsChars)) return false;
     try { await this.compact(session); return true; }
     catch (err) { console.error(`[compact] failed, continuing: ${err.message}`); return false; }
   }

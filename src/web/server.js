@@ -127,7 +127,7 @@ export function createWebServer({ ctx, store, approval, token }) {
           } catch (err) { return sendJson(res, 500, { error: err.message }); }
         }
       }
-      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(stream|turn|compact|export))?$/);
+      const m = url.pathname.match(/^\/api\/sessions\/([\w-]+)(\/(stream|turn|compact|export|cancel))?$/);
       if (m && req.method === "DELETE" && !m[2]) {
         try { store.softDelete(m[1]); return sendJson(res, 200, { ok: true }); }
         catch (err) { return sendJson(res, 404, { error: err.message }); }
@@ -159,6 +159,9 @@ export function createWebServer({ ctx, store, approval, token }) {
             }
           });
           return;
+        }
+        if (m[3] === "cancel" && req.method === "POST") {
+          return sendJson(res, 200, { cancelled: await loop.cancel(session.id) });
         }
         if (m[3] === "compact" && req.method === "POST") {
           try {

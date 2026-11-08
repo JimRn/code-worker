@@ -13,7 +13,7 @@ export const SESSION_FORMAT_VERSION = 1;
 
 /** Durable event registry (SessionEventMap analogue): unknown types fail loud. */
 export const SESSION_EVENTS = new Set([
-  "turn/start", "turn/end", "step/start", "step/end",
+  "turn/start", "turn/end", "turn/failed", "turn/cancelled", "step/start", "step/end",
   "system/message", "user/message", "assistant/message", "assistant/attempt",
   "tool/call", "tool/result", "todo/write", "session/title", "compaction/summary",
 ]);
