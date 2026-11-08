@@ -77,10 +77,10 @@ export class SettingsStore {
     const s = readJson(this.settingsFile, {});
     return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, apiKey: this.getApiKey() };
   }
-  /** Model fields for model-config assembly (the only consumer-facing shape;
-   * credentials stay behind the capability view, never the raw file). */
+  /** Model fields for model-config assembly — the single sanctioned path for
+   * the stored key (describe()/API reads still never return it). */
   getModelConfig() {
     const s = readJson(this.settingsFile, {});
-    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow };
+    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, apiKey: this.getApiKey() };
   }
 }
