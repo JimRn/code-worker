@@ -1,5 +1,5 @@
 import { CompactionService, installCompaction } from "../../src/features.js";
-export const plugin = { name: "compaction", deps: ["llm", "modelConfig", "sessions", "tools?"],
+export const plugin = { name: "compaction", deps: ["llm", "modelConfig", "sessions", "tools?"], serviceMethods: ["prune", "compact", "maybeCompact", "overBudget"],
   configSchema: { properties: { contextWindow: true, outputReserve: true, safety: true, pruneBytes: true, keepRecent: true, maxContextChars: true } }, apply(ctx, env) {
   const store = ctx.require("sessions");
   store.registerEventType("compaction/summary");

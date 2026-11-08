@@ -3,7 +3,7 @@ import { TerminalService } from "../../src/terminal.js";
 
 export const plugin = {
   name: "terminals",
-  deps: [],
+  deps: [], serviceMethods: ["open", "send", "read", "close", "writeRaw", "subscribe", "resize"],
   apply(ctx) {
     const svc = new TerminalService();
     ctx.provide("terminals", svc);

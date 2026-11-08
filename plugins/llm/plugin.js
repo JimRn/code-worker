@@ -1,5 +1,5 @@
 import { LlmService, OpenAICompatibleAdapter, MockAdapter } from "../../src/llm.js";
-export const plugin = { name: "llm", deps: ["modelConfig"], apply(ctx, env) {
+export const plugin = { name: "llm", deps: ["modelConfig"], serviceMethods: ["registerAdapter", "prepareCall"], apply(ctx, env) {
   const modelConfig = ctx.require("modelConfig");
   const llm = new LlmService();
   ctx.provide("llm", llm);

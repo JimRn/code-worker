@@ -2,8 +2,10 @@
 // expose to consumers. Context.provide() wraps a provided service in a
 // read-only view that exposes ONLY these members — providers can be
 // swapped without leaking internals, and consumers cannot reach beyond
-// the declared capability surface. Keys not listed here (plain data such
-// as modelConfig, or function services such as "isolate") pass through.
+// the declared capability surface. Plugins declare their own via
+// ctx.registerMethods(key, [...]) at apply time; this table is only the
+// built-in defaults. Keys not listed (plain data such as modelConfig, or
+// function services such as "isolate") pass through.
 //
 // NOTE: the view is hygiene, not a security boundary — determined code in
 // the same process can still reach the target via reflection hacks if it
@@ -22,16 +24,18 @@ export const SERVICE_METHODS = {
   terminals: ["open", "send", "read", "close", "writeRaw", "subscribe", "resize"],
 };
 
-/** Is this service worth wrapping? Only real services (with a listed method). */
-export function shouldWrap(key, service) {
-  if (!Object.hasOwn(SERVICE_METHODS, key)) return false;
+/** Is this service worth wrapping? Only real services (with a listed method).
+ * Registry precedence: plugin-declared methods, else built-in defaults. */
+export function shouldWrap(key, service, registry) {
+  const methods = registry?.get?.(key) ?? SERVICE_METHODS[key];
+  if (!methods) return false;
   if (!service || (typeof service !== "object" && typeof service !== "function")) return false;
-  return SERVICE_METHODS[key].some((m) => typeof service[m] === "function" || service[m] !== undefined);
+  return methods.some((m) => typeof service[m] === "function" || service[m] !== undefined);
 }
 
 /** Read-only capability view: listed members only, methods bound to the target. */
-export function wrapService(key, service) {
-  const allowed = new Set(SERVICE_METHODS[key]);
+export function wrapService(key, service, registry) {
+  const allowed = new Set(registry?.get?.(key) ?? SERVICE_METHODS[key]);
   const bound = new Map(); // stable bound-method identity across gets
   return new Proxy(service, {
     get(target, prop) {

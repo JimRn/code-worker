@@ -5,17 +5,20 @@ export class Context {
   constructor() {
     this.services = new Map();
     this._raw = new Map();
+    this.serviceMethods = new Map(); // key -> methods, declared by plugins at apply time
     this.listeners = new Map(); // event -> [{fn, mode}]
     this.effects = []; // disposers, LIFO on dispose
     this.disposed = false;
   }
   /** Register service under stable key; returns disposer (reversible effect).
    * Known services are stored behind their capability view (service-definitions). */
+  /** Declare which members a service may expose (plugins call this for their own key). */
+  registerMethods(key, methods) { this.serviceMethods.set(key, [...methods]); }
   provide(key, service) {
     const prev = this.services.get(key);
     if (prev) console.warn(`[context] ctx.${key} re-provided (shadowing previous service)`);
     const prevRaw = this._raw.get(key);
-    this.services.set(key, shouldWrap(key, service) ? wrapService(key, service) : service);
+    this.services.set(key, shouldWrap(key, service, this.serviceMethods) ? wrapService(key, service, this.serviceMethods) : service);
     this._raw.set(key, service);
     const dispose = () => {
       if (prev) { this.services.set(key, prev); this._raw.set(key, prevRaw); }

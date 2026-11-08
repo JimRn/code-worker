@@ -57,6 +57,8 @@ export async function bootProfile(profilePath, { workspace, autoApprove = false,
     }
     // Per-plugin config travels on env.pluginConfig for this plugin only.
     const pluginConfig = validatePluginConfig(name, plugin, profile.config?.plugins?.[name]);
+    // Capability declaration travels with the plugin (not a core table).
+    if (plugin.serviceMethods?.length) ctx.registerMethods(plugin.provides ?? name, plugin.serviceMethods);
     await plugin.apply(ctx, { ...sharedEnv, pluginConfig });
   }
 
