@@ -213,12 +213,6 @@ button { background:#1f6feb; color:#fff; border:0; border-radius:8px; padding:0 
 #policy-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:60; }
 #policy-modal[hidden] { display:none; }
 #policy-modal .modal-card textarea { width:100%; margin:4px 0 10px; }
-.choices { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-.choice { background:#21262d; border:1px solid var(--line); color:var(--text); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
-.choice:hover { border-color:#58a6ff; }
-.choice-custom { display:flex; gap:4px; }
-.choice-custom input { background:#0d1117; border:1px solid var(--line); color:var(--text); border-radius:6px; padding:4px 8px; min-width:160px; }
-.choice-send { background:#21262d; border:1px solid var(--line); color:var(--muted); border-radius:6px; cursor:pointer; }
 .question-card { background:#f6f8fa; border:1px solid var(--line); border-radius:12px; padding:14px; margin:10px 0; color:#1c1e21; }
 .q-head { color:#59636e; font-size:13px; }
 .q-title { font-weight:600; margin:8px 0 2px; }
