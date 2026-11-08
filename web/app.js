@@ -672,7 +672,7 @@ async function renderTrace() {
     if (q && !summary.toLowerCase().includes(q)) continue;
     rows.push(`<div class="trace-row" data-i="${i}"><span class="badge ${badge[1]}">${badge[0]}</span><span class="tr-summary">${esc(summary)}</span></div>`);
   }
-  $("#trace-list").innerHTML = rows.join("");
+  $("#trace-list").innerHTML = rows.reverse().join(""); // newest first (reverse chronological)
   document.querySelectorAll(".trace-row").forEach((el) => (el.onclick = () => showTraceDetail(events[+el.dataset.i], events)));
 }
 
