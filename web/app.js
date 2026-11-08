@@ -59,6 +59,9 @@ function renderEvent(ev) {
     turn.innerHTML = `<div class="turn-body"></div>`;
     box.appendChild(turn);
     currentTurn = { el: turn, startTs: ev.ts, tools: new Map() };
+    // Move the thinking indicator inside this turn (after the user message below).
+    const thinking = document.getElementById("thinking");
+    if (thinking) turn.querySelector(".turn-body").appendChild(thinking);
     return;
   }
   if (ev.type === "turn/end") {
@@ -163,8 +166,9 @@ function renderEvent(ev) {
     div.className = "msg user";
     div.innerHTML = `${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
     div.querySelector(".copy").onclick = (e) => copyText(ev.data.text, e.target);
-    // User message heads its turn group (tool/reasoning blocks follow below it).
-    (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
+    // User message heads its turn group, before the thinking indicator.
+    const body = currentTurn ? currentTurn.el.querySelector(".turn-body") : box;
+    body.insertBefore(div, document.getElementById("thinking"));
     box.scrollTop = box.scrollHeight;
     return;
   }
@@ -182,7 +186,7 @@ function renderEvent(ev) {
     box.scrollTop = box.scrollHeight;
     return;
   }
-  else if (ev.type === "system/message") { div.className = "msg system"; div.textContent = ev.data.text; }
+  else if (ev.type === "system/message") { return; } // model-only: never render in chat
   else if (ev.type === "compaction/summary") { div.className = "msg system"; div.textContent = `🗜 已压缩 ${ev.data.summarizedCount} 条早期消息：${ev.data.text.slice(0, 200)}…`; }
   else if (ev.type === "todo/write") { renderTodos(ev.data.todos); return; }
   else if (ev.type === "assistant/attempt") { div.className = "msg tool"; div.textContent = `⚠ ${ev.data.error}`; }
