@@ -526,7 +526,6 @@ $("#test-settings").onclick = async () => {
 
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
-$("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
 // --- Web terminal: xterm.js + WebSocket to PTY (PuTTY-like) ---
 let termWs = null, termXterm = null, termFit = null;
 let termId = null, termProjectId = null; // reuse the PTY only within the same project
@@ -581,12 +580,12 @@ $("#term-close").onclick = async () => { await termClose(); };
 
 $("#usage-chip").onclick = () => {
   $("#usage-panel-right").hidden = !$("#usage-panel-right").hidden;
-  if (!$("#usage-panel-right").hidden) { $("#file-panel").hidden = true; $("#trash-panel").hidden = true; refreshUsage(); }
+  if (!$("#usage-panel-right").hidden) { $("#trash-panel").hidden = true; refreshUsage(); }
 };
 $("#up-close").onclick = () => { $("#usage-panel-right").hidden = true; };
 $("#toggle-trash").onclick = () => {
   $("#trash-panel").hidden = !$("#trash-panel").hidden;
-  if (!$("#trash-panel").hidden) { $("#file-panel").hidden = true; refreshTrash(); }
+  if (!$("#trash-panel").hidden) { refreshTrash(); }
 };
 $("#tp-close").onclick = () => { $("#trash-panel").hidden = true; };
 
@@ -615,8 +614,10 @@ document.querySelectorAll("#view-tabs button").forEach((b) => (b.onclick = () =>
   document.querySelectorAll("#view-tabs button").forEach((x) => x.classList.toggle("active", x === b));
   $("#trace-view").hidden = viewMode !== "trace";
   $("#terminal-view").hidden = viewMode !== "terminal";
+  $("#file-view").hidden = viewMode !== "file";
   $("#messages").style.display = viewMode === "chat" ? "" : "none";
-  $("#composer").style.display = viewMode === "terminal" ? "none" : "";
+  $("#composer").style.display = (viewMode === "terminal" || viewMode === "file") ? "none" : "";
+  if (viewMode === "file") refreshWorkspace();
   if (viewMode === "trace") renderTrace();
   if (viewMode === "terminal") {
     if (!termWs) termConnect();
@@ -680,8 +681,7 @@ function showTraceDetail(ev, events) {
 }
 $("#td-close").onclick = () => { $("#trace-detail").hidden = true; };
 $("#trace-search").oninput = () => renderTrace();
-$("#open-files").onclick = (e) => { e.preventDefault(); $("#file-panel").hidden = false; };
-$("#fp-close").onclick = () => { $("#file-panel").hidden = true; };
+$("#open-files").onclick = (e) => { e.preventDefault(); document.querySelector('[data-view="file"]')?.click(); };
 $("#fp-refresh").onclick = () => refreshWorkspace();
 
 async function refreshWorkspace() {

@@ -67,8 +67,8 @@
         <button type="button" data-view="chat" class="active">对话</button>
         <button type="button" data-view="trace">轨迹</button>
         <button type="button" data-view="terminal" id="tab-terminal">终端</button>
+        <button type="button" data-view="file" id="tab-file">文件</button>
       </div>
-      <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
       <button id="usage-chip" type="button" title="当前 Project Token 用量（点击看明细）"></button>
       <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
@@ -83,6 +83,11 @@
     <div id="terminal-view" hidden>
       <div class="term-bar"><span>⌨ 终端（PTY，经 WebSocket 实时）</span><span class="spacer"></span><button id="term-close" type="button" title="关闭终端连接">✕ 关闭</button></div>
       <div id="xterm-holder"></div>
+    </div>
+    <div id="file-view" hidden>
+      <div class="fp-path"><span>📁 文件</span><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
+      <ul id="fp-list"></ul>
+      <pre id="fp-preview" hidden></pre>
     </div>
     <div id="messages"></div>
     <form id="composer">
@@ -119,12 +124,6 @@
     <div class="td-head"><span class="badge tool">工具</span> <span id="td-title"></span><button id="td-close" type="button">✕</button></div>
     <div class="td-tabs"><button data-t="overview" class="active">概述</button><button data-t="args">参数</button><button data-t="result">结果</button><button data-t="schema">Schema</button><button data-t="timing">计时</button></div>
     <div id="td-body"></div>
-  </aside>
-  <aside id="file-panel" hidden>
-    <div class="fp-tab">📁 文件 <button id="fp-close" type="button" title="关闭">✕</button></div>
-    <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
-    <ul id="fp-list"></ul>
-    <pre id="fp-preview" hidden></pre>
   </aside>
   <aside id="usage-panel-right" hidden>
     <div class="fp-tab">📊 用量 <button id="up-close" type="button" title="关闭">✕</button></div>
