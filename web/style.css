@@ -67,6 +67,13 @@ body { margin:0; font:14px/1.5 system-ui,sans-serif; background:var(--bg); color
 #file-panel[hidden] { display:none; }
 #trash-panel { width:300px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
 #trash-panel[hidden] { display:none; }
+#usage-panel-right { width:340px; flex:none; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+#usage-panel-right[hidden] { display:none; }
+#usage-detail { padding:12px; overflow:auto; }
+.ud-total { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; }
+.ud-row { display:flex; flex-wrap:wrap; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); font-size:12px; color:var(--muted); }
+.ud-row span:first-child { color:var(--text); font-weight:600; flex:1 1 auto; }
+#usage-chip { background:transparent; border:0; color:var(--muted); font-size:12px; cursor:pointer; }
 #trash-list { list-style:none; margin:0; padding:6px; overflow:auto; flex:1; }
 #toggle-trash { margin-left:8px; }
 .fp-tab { display:flex; align-items:center; gap:6px; padding:10px 12px; border-bottom:1px solid var(--line); font-size:13px; }

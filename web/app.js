@@ -382,11 +382,14 @@ async function refreshAgents() {
 }
 async function refreshUsage() {
   const pid = $("#project-picker").value;
-  if (!pid) { $("#usage-panel").textContent = ""; return; }
+  if (!pid) { $("#usage-chip").textContent = ""; return; }
   const u = await (await fetch(api(`/projects/${encodeURIComponent(pid)}/usage`))).json();
-  const lines = Object.entries(u.byAgent ?? {}).map(([n, t]) => `${n}: ${t.total}`);
   $("#usage-chip").textContent = u.total?.total ? `用量 ${u.total.total}` : "";
-  $("#usage-chip").title = lines.length ? lines.join("\n") : "";
+  $("#usage-detail").innerHTML =
+    `<div class="ud-total"><span>总计</span><b>${u.total?.total ?? 0} tokens</b></div>` +
+    (Object.entries(u.byAgent ?? {}).map(([n, t]) =>
+      `<div class="ud-row"><span>${esc(n)}</span><span>${t.total} tokens</span><span>${t.prompt}↑/${t.completion}↓</span><span>缓存命中 ${t.hitRate}%</span><span>${t.turns} 轮</span></div>`).join("") ||
+    `<div class="status">暂无用量数据</div>`);
 }
 $("#new-agent").onclick = async () => {
   $("#agent-dialog").hidden = !$("#agent-dialog").hidden;
@@ -539,6 +542,11 @@ $("#test-settings").onclick = async () => {
 // --- File panel (DeepSeek-style right sidebar: tab + path + refresh + list) ---
 let wsPath = ".";
 $("#toggle-files").onclick = () => { $("#file-panel").hidden = !$("#file-panel").hidden; };
+$("#usage-chip").onclick = () => {
+  $("#usage-panel-right").hidden = !$("#usage-panel-right").hidden;
+  if (!$("#usage-panel-right").hidden) { $("#file-panel").hidden = true; $("#trash-panel").hidden = true; refreshUsage(); }
+};
+$("#up-close").onclick = () => { $("#usage-panel-right").hidden = true; };
 $("#toggle-trash").onclick = () => {
   $("#trash-panel").hidden = !$("#trash-panel").hidden;
   if (!$("#trash-panel").hidden) { $("#file-panel").hidden = true; refreshTrash(); }

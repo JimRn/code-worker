@@ -69,7 +69,7 @@
         <button type="button" data-view="trace">轨迹</button>
       </div>
       <button id="toggle-files" type="button" title="文件面板">📁 文件</button>
-      <span id="usage-chip" class="status" title="当前 Project Token 用量"></span>
+      <button id="usage-chip" type="button" title="当前 Project Token 用量（点击看明细）"></button>
       <button id="toggle-trash" type="button" title="回收站">🗑 回收站</button>
     </div>
     <div id="trace-view" hidden>
@@ -121,6 +121,10 @@
     <div class="fp-path"><span id="fp-root"></span><button id="fp-refresh" type="button" title="刷新">↻</button></div>
     <ul id="fp-list"></ul>
     <pre id="fp-preview" hidden></pre>
+  </aside>
+  <aside id="usage-panel-right" hidden>
+    <div class="fp-tab">📊 用量 <button id="up-close" type="button" title="关闭">✕</button></div>
+    <div id="usage-detail"></div>
   </aside>
   <aside id="trash-panel" hidden>
     <div class="fp-tab">🗑 回收站 <button id="tp-close" type="button" title="关闭">✕</button></div>
