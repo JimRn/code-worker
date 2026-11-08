@@ -247,6 +247,24 @@ export function registerWorkspaceRoutes(app) {
   });
 }
 
+/** Structured question answers (ask-user plugin). */
+export function registerQuestionRoutes(app) {
+  const { ctx, sendJson, readBody } = app;
+  const qsvc = ctx.get("questions");
+  if (!qsvc) return; // capability gate
+  app.route("POST", "/api/questions", async (req, res) => {
+    const body = await readBody(req);
+    const entry = qsvc.pending.get(body.callId);
+    if (!entry) return sendJson(res, 404, { error: "no pending question" });
+    if (body.sessionId && entry.req.sessionId !== body.sessionId) return sendJson(res, 403, { error: "question belongs to a different session" });
+    const answer = String(body.answer ?? "").trim();
+    if (!answer) return sendJson(res, 400, { error: "answer is required (or use ignore)" });
+    qsvc.pending.delete(body.callId);
+    entry.resolve(answer);
+    sendJson(res, 200, { ok: true });
+  });
+}
+
 export function registerApprovalRoutes(app) {
   const { sendJson, readBody, approval } = app;
   app.route("POST", "/api/approvals", async (req, res) => {

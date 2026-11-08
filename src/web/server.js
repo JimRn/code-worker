@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
-import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes, registerTerminalRoutes, registerProjectEnvRoutes, registerPolicyRoutes } from "./routes.js";
+import { registerProjectRoutes, registerSettingsRoutes, registerWorkspaceRoutes, registerApprovalRoutes, registerSessionRoutes, registerTerminalRoutes, registerProjectEnvRoutes, registerPolicyRoutes, registerQuestionRoutes } from "./routes.js";
 
 /** LAN IPv4 addresses of this host (for display; server binds all interfaces). */
 export function lanAddresses() {
@@ -31,6 +31,12 @@ export function createWebServer({ ctx, store, approval, token }) {
   // Per-call approval: guard suspends; we fan the request out to that session's browsers only.
   approval.notify = ({ callId, name, args, sessionId }) => {
     const frame = `data: ${JSON.stringify({ live: true, type: "approval/request", data: { callId, name, args, sessionId } })}\n\n`;
+    for (const res of sseClients.get(sessionId) ?? []) { try { res.write(frame); } catch { /* client gone */ } }
+  };
+  // Structured questions fan out to the same SSE channel.
+  const qsvc = ctx.get("questions");
+  if (qsvc) qsvc.notify = ({ callId, question, options, sessionId }) => {
+    const frame = `data: ${JSON.stringify({ live: true, type: "question/request", data: { callId, question, options, sessionId } })}\n\n`;
     for (const res of sseClients.get(sessionId) ?? []) { try { res.write(frame); } catch { /* client gone */ } }
   };
 
@@ -66,6 +72,7 @@ export function createWebServer({ ctx, store, approval, token }) {
   if (ctx.get("terminals")) registerTerminalRoutes(app);
   registerProjectEnvRoutes(app); // self-gates on ctx projectEnv
   registerPolicyRoutes(app); // self-gates on ctx policies
+  registerQuestionRoutes(app); // self-gates on ctx questions
 
   // Optional LAN token auth: API requires ?token=, x-cw-token, or Authorization: Bearer.
   const authorized = (req, url) =>

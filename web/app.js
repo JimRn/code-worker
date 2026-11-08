@@ -182,6 +182,32 @@ function renderEvent(ev) {
     box.scrollTop = box.scrollHeight;
     return;
   }
+  // Structured question (ask_user plugin): single-select card with custom
+  // answer, submitted answer resumes the turn as the tool result.
+  if (ev.type === "question/request") {
+    const card = document.createElement("div");
+    card.className = "question-card";
+    const opts = (ev.data.options ?? []).map((o, i) =>
+      `<label class="q-opt"><input type="radio" name="q-${escAttr(ev.data.callId)}" value="${escAttr(o.label)}"><span><b>${esc(o.label)}</b>${o.description ? `<small>${esc(o.description)}</small>` : ""}</span></label>`).join("");
+    card.innerHTML = `<div class="q-head">Question</div><div class="q-title">${esc(ev.data.question)}</div><div class="q-sub">选择一个答案</div>${opts}<label class="q-opt"><input type="radio" name="q-${escAttr(ev.data.callId)}" value="__custom"><span><input class="q-custom" placeholder="Type your own answer..."></span></label><div class="q-foot"><button class="q-ignore">忽略</button><button class="q-submit" disabled>提交 ⏎</button></div>`;
+    const submit = async () => {
+      const picked = card.querySelector(`input[name="q-${ev.data.callId}"]:checked`);
+      let answer = picked?.value;
+      if (answer === "__custom") answer = card.querySelector(".q-custom").value.trim();
+      if (!answer) return;
+      await fetch(api("/questions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId: ev.data.callId, sessionId: ev.data.sessionId, answer }) }).catch(() => {});
+      card.remove();
+    };
+    card.querySelectorAll("input[type=radio]").forEach((r) => (r.onchange = () => { card.querySelector(".q-submit").disabled = false; }));
+    card.querySelector(".q-submit").onclick = submit;
+    card.querySelector(".q-ignore").onclick = async () => {
+      await fetch(api("/questions"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callId: ev.data.callId, sessionId: ev.data.sessionId, answer: "（用户选择忽略）" }) }).catch(() => {});
+      card.remove();
+    };
+    (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(card);
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
   // Live stream chunk: re-render markdown incrementally (removed when the durable message lands).
   if (ev.type === "assistant/chunk") {
     hideThinking();

@@ -25,7 +25,8 @@
     "project-isolation",
     "title-generator",
     "agent-loop",
-    "guard-approval"
+    "guard-approval",
+    "ask-user"
   ],
   "config": {
     "workspace": ".",
