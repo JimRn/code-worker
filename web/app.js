@@ -329,7 +329,7 @@ $("#perm-picker").onchange = (e) => {
 async function refreshProjects() {
   const { projects } = await (await fetch(api("/projects"))).json();
   $("#project-picker").innerHTML =
-    projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}（${p.repos.join(", ")}）</option>`).join("") +
+    projects.map((p) => `<option value="${escAttr(p.id)}">${esc(p.name)}</option>`).join("") +
     `<option value="__new__">+ 新建 Project…</option>`;
   refreshAgents();
   $("#new-session").disabled = !$("#project-picker").value || $("#project-picker").value === "__new__";
