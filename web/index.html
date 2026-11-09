@@ -98,7 +98,6 @@
       <div id="env-status" class="status"></div>
     </div>
     <div id="messages"></div>
-    <div id="session-stats" class="status" title="本会话 Token 与上下文用量"></div>
     <form id="composer">
       <textarea id="input" rows="3" placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"></textarea>
       <div class="composer-bar">
@@ -125,6 +124,7 @@
         </select>
         <span class="spacer"></span>
         <select id="model-picker" title="选择模型（per-turn）"></select>
+        <span id="session-stats" class="status" title="本会话 Token 与上下文用量"></span>
         <button type="submit" id="send" title="发送（Enter）">↑</button>
         <button type="button" id="stop" title="停止当前任务" hidden>■ 停止</button>
       </div>
