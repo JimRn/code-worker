@@ -39,7 +39,7 @@ test("web settings: redacted read, write-only key, live reconfigure without rest
     assert.equal(saved.model, "stub-1");
     // GET never returns the secret
     const view = await (await fetch(`${base}/api/settings`)).json();
-    assert.deepEqual(Object.keys(view).sort(), ["baseUrl", "capabilities", "contextWindow", "hasApiKey", "model", "reasoningEffort", "priceCache", "priceInput", "priceOutput"]);
+    assert.deepEqual(Object.keys(view).sort(), ["baseUrl", "capabilities", "contextWindow", "hasApiKey", "model", "priceCache", "priceInput", "priceOutput", "reasoningEffort"]);
     assert.ok(!JSON.stringify(view).includes("secret-key"));
     // connection test hits the new endpoint
     const t = await (await fetch(`${base}/api/settings/test`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
