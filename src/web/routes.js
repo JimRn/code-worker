@@ -347,7 +347,9 @@ export function registerSessionRoutes(app) {
     const session = store.open(m[1]);
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     res.flushHeaders();
-    for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
+    // Coalesce the backlog into one write: per-event res.write hits TCP
+    // small-write latency (~40ms each → 600 events took ~30s).
+    res.write(session.events.map((ev) => `data: ${JSON.stringify(ev)}\n\n`).join(""));
     res.write(`data: ${JSON.stringify({ type: "replay/end" })}\n\n`); // client paginates history below this sentinel
     const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
     if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
