@@ -317,7 +317,9 @@ export function registerSessionRoutes(app) {
   });
   app.route("DELETE", /^\/api\/projects\/([\w-]+)\/trash\/([\w-]+)\/purge$/, async (req, res, m) => {
     try {
-      rmSync(join(store.projectsDir, m[1], "trash", m[2]), { recursive: true, force: true });
+      const trashDir = join(store.projectDir(m[1]), "trash", m[2]);
+      if (!existsSync(trashDir)) return sendJson(res, 404, { error: "trashed session not found" });
+      rmSync(trashDir, { recursive: true, force: true });
       return sendJson(res, 200, { ok: true });
     } catch (err) { return sendJson(res, 500, { error: err.message }); }
   });
