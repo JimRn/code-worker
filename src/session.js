@@ -3,7 +3,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { deriveMessages, todos as deriveMessagesTodos, title as deriveTitle, usageTotals as deriveUsageTotals } from "./session-views.js";
+import { deriveMessages, usageTotals as deriveUsageTotals } from "./session-views.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Per-turn live session scope lives on each SessionStore instance
@@ -31,10 +31,13 @@ export class SessionStore {
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
     this.eventTypes = new Set(SESSION_EVENTS);
     this.projectionHandlers = new Map(); // feature event type -> fold(state, ev)
+    this.derivedReaders = new Map(); // derivation name (todos/title) -> reader(events)
     this.scope = new AsyncLocalStorage(); // per-turn live session
   }
   /** Plugins register their durable event types here (fail-loud append gate). */
   registerEventType(type) { this.eventTypes.add(type); return () => this.eventTypes.delete(type); }
+  /** Plugins register derived-state readers (e.g. todos/title) on the store. */
+  registerDerived(name, fn) { this.derivedReaders.set(name, fn); return () => this.derivedReaders.delete(name); }
   /** Plugins register message-projection folds (e.g. compaction/summary reset). */
   registerProjection(type, handler) { this.projectionHandlers.set(type, handler); return () => this.projectionHandlers.delete(type); }
   /** Title plugin registers how to read a title from the log tail; core only calls it. */
@@ -185,12 +188,11 @@ export class Session {
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
-  // Derived views delegate to session-views.js (Session only appends).
-  // Todo writes live in the todo plugin (it owns the todo/write event type);
-  // the core Session only appends events it has been told about.
-  todos() { return deriveMessagesTodos(this.events); }
+  // Derived state is reader-registered by feature plugins (todos/title);
+  // core Session only appends events.
+  todos() { return this.store.derivedReaders.get("todos")?.(this.events) ?? []; }
+  title() { return this.store.derivedReaders.get("title")?.(this.events) ?? null; }
   usageTotals() { return deriveUsageTotals(this.events); }
-  title() { return deriveTitle(this.events); }
   deriveMessages() {
     // Incremental invalidation: reuse the projection until append changes length.
     if (this._derivedAt !== this.events.length) {

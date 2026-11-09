@@ -50,22 +50,6 @@ export function deriveMessages(events, handlers = new Map()) {
 }
 
 /** Latest todo list (log-only durable state). */
-export function todos(events) {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].type === "todo/write") return events[i].data.todos;
-  }
-  return [];
-}
-
-/** Latest generated title, or null. */
-export function title(events) {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].type === "session/title") return events[i].data.text;
-  }
-  return null;
-}
-
-/** Sum of token usage across assistant messages (incl. cache read/write). */
 export function usageTotals(events) {
   let prompt = 0, completion = 0, cacheRead = 0, cacheWrite = 0;
   for (const ev of events) {

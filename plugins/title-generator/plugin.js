@@ -10,6 +10,10 @@ export const plugin = { name: "title-generator", deps: ["llm", "modelConfig", "s
     }
     return null;
   }));
+  store.registerDerived("title", (events) => {
+    for (let i = events.length - 1; i >= 0; i--) if (events[i].type === "session/title") return events[i].data.text;
+    return null;
+  });
   installTitleGenerator(ctx);
 } };
 export default plugin;
