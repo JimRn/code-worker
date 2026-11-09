@@ -98,9 +98,14 @@ export class SessionStore {
     if (!existsSync(dir)) throw new Error(`Session not found: ${id}`);
     const s = new Session(this, id, dir);
     this.cache.set(id, s);
-    while (this.cache.size > MAX_CACHE) {
-      const oldest = this.cache.keys().next().value;
-      this.cache.delete(oldest);
+    let evicted = false;
+    while (this.cache.size > MAX_CACHE && !evicted) {
+      // Never evict a live session (in-flight turn / SSE subscribers):
+      // forking the same id into two live objects corrupts seq and pairing.
+      const oldest = [...this.cache.entries()].find(([, s]) => !(s.onAppend?.size > 0));
+      if (!oldest) break;
+      this.cache.delete(oldest[0]);
+      evicted = oldest[1] !== s;
     }
     return s;
   }
