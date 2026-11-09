@@ -105,7 +105,7 @@ export function installApprovalGuard(ctx, { autoApprove, guarded, timeoutMs = 30
         const onAbort = () => { // abort: clean pending and deny so the step ends promptly
           clearTimeout(timer); ref.pending.delete(req.callId); resolve(false);
         };
-        signal?.addEventListener("abort", onAbort, { once: true });
+        req.signal?.addEventListener("abort", onAbort, { once: true });
       });
       ref.pending.delete(req.callId);
       if (!decision) { req.denied = `${req.name} denied by user`; req.policy = "guard-approval"; }
