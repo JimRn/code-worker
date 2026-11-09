@@ -331,7 +331,10 @@ export function registerSessionRoutes(app) {
 
   app.route("GET", /^\/api\/sessions\/([\w-]+)$/, async (req, res, m) => {
     const session = store.open(m[1]);
-    return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages: session.deriveMessages() });
+    const messages = session.deriveMessages();
+    const chars = messages.reduce((n, mm) => n + (mm.content?.length ?? 0), 0);
+    const contextWindow = ctx.get("modelConfig")?.contextWindow ?? 128000;
+    return sendJson(res, 200, { id: session.id, title: session.title(), binding: session.binding, usage: session.usageTotals(), todos: session.todos(), events: session.events, messages, context: { chars, estTokens: Math.ceil(chars / 4), window: contextWindow } });
   });
 
   app.route("GET", /^\/api\/sessions\/([\w-]+)\/export$/, async (req, res, m) => {

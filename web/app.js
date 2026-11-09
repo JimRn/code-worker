@@ -270,7 +270,14 @@ function renderTodos(todos, seq) {
 async function updateUsage() {
   if (!currentId) return;
   const s = await (await fetch(api(`/sessions/${currentId}`))).json();
-  $("#usage-info").textContent = s.usage?.total ? `用量 ${s.usage.total} tokens（${s.usage.prompt}↑/${s.usage.completion}↓）` : "";
+  const u = s.usage ?? {};
+  const c = s.context ?? {};
+  $("#usage-info").textContent = u.total ? `用量 ${u.total} tokens（${u.prompt}↑/${u.completion}↓）` : "";
+  // Chat footer: token usage + context occupancy (chars/4 estimate, compaction threshold).
+  const pct = c.window ? Math.round((c.estTokens / c.window) * 100) : 0;
+  $("#session-stats").textContent = u.total
+    ? `Token 用量 ${u.total}（输入 ${u.prompt} · 输出 ${u.completion} · 缓存 ${u.cacheRead ?? 0}） · 上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`
+    : `上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`;
 }
 
 function openStream(id) {
