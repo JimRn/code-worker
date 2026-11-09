@@ -57,6 +57,12 @@ export class AgentLoop {
             }
           }
         } catch (err) {
+          // Cancellation must reach the outer handler (turn/cancelled) — and
+          // anything generated so far becomes a durable message.
+          if (effectiveSignal.aborted || err?.name === "AbortError") {
+            if (result.text) await session.append("assistant/message", { text: result.text, toolCalls: result.toolCalls ?? [], usage: result.usage ?? undefined, reasoning: result.reasoning ?? undefined });
+            throw err;
+          }
           await session.append("assistant/attempt", { error: err.message });
           await session.append("step/end", { step, error: err.message });
           break;
