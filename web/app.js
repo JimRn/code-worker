@@ -230,7 +230,7 @@ function renderEvent(ev) {
     div.innerHTML =
       (ev.data.reasoning ? `<div class="reasoning-done"><button class="tb-head">⌃ 思考过程</button><div class="tb-body"><pre>${esc(ev.data.reasoning)}</pre></div></div>` : "") +
       mdToHtml(ev.data.text || "") +
-      (ev.data.usage ? `<div class="usage">tokens ${ev.data.usage.prompt_tokens ?? 0}↑/${ev.data.usage.completion_tokens ?? 0}↓${ev.data.usage.prompt_tokens_details?.cached_tokens ? `（缓存 ${ev.data.usage.prompt_tokens_details.cached_tokens}）` : ""}</div>` : "");
+      (ev.data.usage ? `<div class="usage">tokens ${esc(String(ev.data.usage.prompt_tokens ?? 0))}↑/${esc(String(ev.data.usage.completion_tokens ?? 0))}↓${ev.data.usage.prompt_tokens_details?.cached_tokens ? `（缓存 ${esc(String(ev.data.usage.prompt_tokens_details.cached_tokens))}）` : ""}</div>` : "");
     div.querySelectorAll(".tb-head").forEach((b) => (b.onclick = () => b.parentElement.classList.toggle("collapsed")));
     if (ev.data.usage) updateUsage();
     (currentTurn ? currentTurn.el.querySelector(".turn-body") : box).appendChild(div);
@@ -415,7 +415,7 @@ async function refreshUsage() {
   $("#usage-detail").innerHTML =
     `<div class="ud-total"><span>总计</span><b>${u.total?.total ?? 0} tokens</b></div>` +
     (Object.entries(u.byAgent ?? {}).map(([n, t]) =>
-      `<div class="ud-row"><span>${esc(n)}</span><span>${t.total} tokens</span><span>${t.prompt}↑/${t.completion}↓</span><span>缓存命中 ${t.hitRate}%</span><span>${t.turns} 轮</span></div>`).join("") ||
+      `<div class="ud-row"><span>${esc(n)}</span><span>${esc(String(t.total))} tokens</span><span>${esc(String(t.prompt))}↑/${esc(String(t.completion))}↓</span><span>缓存命中 ${esc(String(t.hitRate))}%</span><span>${esc(String(t.turns))} 轮</span></div>`).join("") ||
     `<div class="status">暂无用量数据</div>`);
 }
 $("#new-agent").onclick = async () => {
@@ -728,7 +728,7 @@ function showTraceDetail(ev, events) {
   const result = ev.type === "tool/result" ? ev : events.find((e, j) => j > events.indexOf(ev) && e.type === "tool/result" && e.data.callId === ev.data.callId);
   const dur = result ? result.ts - ev.ts : null;
   const tabs = {
-    overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div><div class="td-kv"><span>监管</span><b>${result?.data.policy ? `Block（${result.data.policy}）` : "—"}</b></div>`,
+    overview: `<div class="td-kv"><span>层级</span><b>${ev.type === "tool/call" ? "工具调用" : ev.type}</b></div><div class="td-kv"><span>状态</span><b>${result ? (result.data.isError ? "失败" : "已完成") : "—"}</b></div><div class="td-kv"><span>监管</span><b>${result?.data.policy ? `Block（${esc(result.data.policy)}）` : "—"}</b></div>`,
     args: `<pre>${esc(JSON.stringify(callEv?.data.args ?? ev.data.args ?? {}, null, 2))}</pre>`,
     result: `<pre>${esc(result ? String(result.data.output ?? "") : "（无结果）")}</pre>`,
     policy: result?.data.policy
