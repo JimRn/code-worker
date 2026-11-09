@@ -17,7 +17,7 @@ export function pruneToolResults(messages, { maxBytes = 2000, keepLast = 2 } = {
 
 /** Rough context estimate (chars; ~4 chars/token). */
 export function estimateChars(messages) {
-  return messages.reduce((n, m) => n + (m.content?.length ?? 0), 0);
+  return messages.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content ?? "").length), 0);
 }
 
 /** Summarize old messages with the LLM (no tools). Returns summary text. */

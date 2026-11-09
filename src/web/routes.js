@@ -380,7 +380,9 @@ export function registerSessionRoutes(app) {
   app.route("POST", /^\/api\/sessions\/([\w-]+)\/turn$/, async (req, res, m) => {
     const session = store.open(m[1]);
     const body = await readBody(req);
-    if (!body.text) return sendJson(res, 400, { error: "text is required" });
+    if (!body.text && !body.images?.length) return sendJson(res, 400, { error: "text is required" });
+    // Vision payloads: dataURL images, capped (each ~<=5MB after base64).
+    const images = Array.isArray(body.images) ? body.images.filter((u) => typeof u === "string" && u.startsWith("data:image/") && u.length <= 7 * 1024 * 1024) : [];
     if (running.has(session.id)) return sendJson(res, 409, { error: "turn already running" });
     // Per-session approval state (guard reads bySession by req.sessionId);
     // global approval stays the CLI fallback. Only provided fields override.
@@ -392,7 +394,7 @@ export function registerSessionRoutes(app) {
     approval.bySession.set(session.id, st);
     running.add(session.id);
     sendJson(res, 202, { accepted: true });
-    loop.runTurn(session, body.text, { model: body.model })
+    loop.runTurn(session, body.text || "", { model: body.model, images })
       .catch((e) => console.error("[web] turn failed:", e.message))
       .finally(() => { running.delete(session.id); if (prevApproval) approval.bySession.set(session.id, prevApproval); else approval.bySession.delete(session.id); });
     return;

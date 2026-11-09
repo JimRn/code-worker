@@ -10,7 +10,7 @@ export class AgentLoop {
   }
   get provider() { return this.modelConfig?.provider ?? this.ctx.get("modelConfig")?.provider; }
   currentModel() { return this.modelConfig?.model ?? this.model; }
-  async runTurn(session, userText, { onText, model, signal } = {}) {
+  async runTurn(session, userText, { onText, model, signal, images } = {}) {
     const ctx = this.ctx;
     const turnModel = model ?? this.currentModel(); // per-turn override (composer picker)
     const ctl = new AbortController();
@@ -22,7 +22,7 @@ export class AgentLoop {
     try {
       return await isolate(session, () => session.store.scope.run(session, async () => {
       await session.append("turn/start", {});
-      await session.append("user/message", { text: userText });
+      await session.append("user/message", images?.length ? { text: userText, images } : { text: userText });
       ctx.get("tools")?.clearLatches?.(session.id); // fresh user message: policy latches reset
       const systemText = await ctx.waterfall(EV.SYSTEM_PROMPT, "You are Code Worker, a coding agent. Use tools when needed.");
       // Dedup: only log when changed, so repeated turns don't bloat the log/context.

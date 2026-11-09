@@ -16,7 +16,14 @@ export function deriveMessages(events, handlers = new Map()) {
     const handler = handlers.get(ev.type);
     if (handler && handler(state, ev)) continue;
     if (ev.type === "system/message") systemTexts.push(ev.data.text); // hoisted below
-    else if (ev.type === "user/message") msgs.push({ role: "user", content: ev.data.text });
+    else if (ev.type === "user/message") {
+      // Vision turns: content as parts (OpenAI image_url format). Text-only
+      // turns stay plain strings. Images persist in the log as dataURLs.
+      const content = ev.data.images?.length
+        ? [{ type: "text", text: ev.data.text }, ...ev.data.images.map((u) => ({ type: "image_url", image_url: { url: u } }))]
+        : ev.data.text;
+      msgs.push({ role: "user", content });
+    }
     else if (ev.type === "assistant/message") {
       // Drop invalid calls (name "None"/empty) persisted by misbehaving providers.
       const calls = (ev.data.toolCalls ?? []).filter((t) => t.name && t.name !== "None");

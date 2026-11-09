@@ -521,7 +521,8 @@ $("#collapse-side").onclick = () => {
 $("#composer").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#input").value.trim();
-  if (!text || !currentId || sending) return; // double-Enter / rapid sends ignored
+  if ((!text && !pendingImages.length) || !currentId || sending) return; // double-Enter / rapid sends ignored
+  const images = [...pendingImages]; pendingImages = []; renderImgStrip();
   sending = true;
   $("#send").hidden = true; $("#stop").hidden = false;
   $("#input").value = "";
@@ -533,7 +534,7 @@ $("#composer").onsubmit = async (e) => {
   await fetch(api(`/sessions/${currentId}/turn`), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, autoApprove: $("#perm-picker").value === "full", approvalMode: $("#perm-picker").value === "per-call" ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
+    body: JSON.stringify({ text, images: images.length ? images : undefined, autoApprove: $("#perm-picker").value === "full", approvalMode: $("#perm-picker").value === "per-call" ? "per-call" : "auto", model: $("#model-picker").value || undefined }),
   });
   $("#status").textContent = "";
 };
