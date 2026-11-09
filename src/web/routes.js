@@ -353,6 +353,11 @@ export function registerSessionRoutes(app) {
         for (const [callId, entry] of approval.pending ?? []) {
           if (entry.req.sessionId === session.id) entry.resolve(false);
         }
+        // Structured questions also end on disconnect (answered as ignored).
+        const qsvc = ctx.get("questions");
+        for (const [callId, entry] of qsvc?.pending ?? []) {
+          if (entry.req.sessionId === session.id) { qsvc.pending.delete(callId); entry.resolve("（用户未在时限内回答）"); }
+        }
       }
     });
     return;
