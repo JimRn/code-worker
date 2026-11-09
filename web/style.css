@@ -246,3 +246,4 @@ code.filechip:hover { border-color:#58a6ff; }
 #img-strip { display:flex; gap:6px; padding:6px 8px; }
 #img-strip[hidden] { display:none; }
 .img-prev { height:56px; border-radius:6px; border:1px solid var(--line); cursor:pointer; }
+.msg-img { max-height:180px; max-width:100%; border-radius:8px; display:block; margin:4px 0; }

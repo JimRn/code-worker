@@ -215,7 +215,7 @@ function renderEvent(ev) {
   const div = document.createElement("div");
   if (ev.type === "user/message") {
     div.className = "msg user";
-    div.innerHTML = `${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
+    div.innerHTML = `${(ev.data.images ?? []).map((u) => `<img class="msg-img" src="${u}" alt="pasted image">`).join("")}${mdToHtml(ev.data.text)}<div class="msg-meta"><time>${new Date(ev.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><button class="copy" title="复制">⧉</button></div>`;
     div.querySelector(".copy").onclick = (e) => copyText(ev.data.text, e.target);
     // User message heads its turn group, before the thinking indicator.
     const body = currentTurn ? currentTurn.el.querySelector(".turn-body") : box;
