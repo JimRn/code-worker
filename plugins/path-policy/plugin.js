@@ -52,7 +52,7 @@ export const plugin = {
       }
       return null;
     };
-    const *stringArgs = function* (v, depth = 0) {
+    function* stringArgs(v, depth = 0) {
       if (depth > 4) return;
       if (typeof v === "string") yield v;
       else if (Array.isArray(v)) for (const x of v) yield* stringArgs(x, depth + 1);
