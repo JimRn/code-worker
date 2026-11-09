@@ -25,8 +25,8 @@ const MAX_CACHE = 50; // LRU cap for live sessions
 export class SessionStore {
   constructor(homeDir) {
     this.homeDir = homeDir;
-    // Projects live beside sessions (same home); trash is per-project.
-    this.projectsDir = join(homeDir, "..", "projects");
+    // Trash placement is a projects-plugin concern; injected by that plugin.
+    this.projectDirResolver = null;
     mkdirSync(homeDir, { recursive: true });
     this.cache = new Map(); // identity: one live Session per id, so SSE subscribers see appends
     this.eventTypes = new Set(SESSION_EVENTS);
@@ -45,17 +45,8 @@ export class SessionStore {
   /** Resolve a project's on-disk dir by id OR by name (dir names are by name;
    * scan project.json ids so id bindings keep working after renames). */
   projectDir(projectIdOrName) {
-    const direct = join(this.projectsDir, projectIdOrName);
-    if (existsSync(join(direct, "project.json"))) return direct;
-    for (const d of readdirSync(this.projectsDir, { withFileTypes: true })) {
-      if (!d.isDirectory()) continue;
-      const full = join(this.projectsDir, d.name);
-      const pj = join(full, "project.json");
-      if (!existsSync(pj)) continue;
-      let meta; try { meta = JSON.parse(readFileSync(pj, "utf8")); } catch { continue; }
-      if (meta.id === projectIdOrName || d.name === projectIdOrName) return full;
-    }
-    return direct; // not found: fall back so the error names the requested dir
+    if (!this.projectDirResolver) throw new Error("Project dir resolver not installed (projects plugin missing)");
+    return this.projectDirResolver(projectIdOrName);
   }
   /** Lightweight list: binding from meta.json + title from last lines (no full open). */
   listLight() {
