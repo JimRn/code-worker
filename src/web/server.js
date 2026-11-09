@@ -100,7 +100,7 @@ export function createWebServer({ ctx, store, approval, token }) {
       for (const r of routes) {
         if (r.method !== req.method) continue;
         const m = r.match(url.pathname);
-        if (m) return r.handler(req, res, m === true ? null : m, url);
+        if (m) { await r.handler(req, res, m === true ? null : m, url); return; }
       }
       res.writeHead(404); res.end("not found");
     } catch (err) {
