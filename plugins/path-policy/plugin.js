@@ -19,7 +19,10 @@ export const plugin = {
       for (const p of [...compiled.keys()]) if (!pats.includes(p)) compiled.delete(p); };
     compile(stored?.blockedCommands?.length ? stored.blockedCommands : (env.pluginConfig?.blockedCommands ?? []));
     const matchBlockedCommand = (cmd) => { for (const [pat, re] of compiled) if (re.test(cmd)) return pat; return null; };
-    const isBlocked = (p, sep = "/") => String(p ?? "").split(sep).some((seg) => blocked.has(seg));
+    // Shell-word segmentation: a blocked dir hides inside words like
+    // "cat .ssh/id_rsa" or "[.ssh]" — tokenize by separators and quotes.
+    const words = (text) => String(text ?? "").replace(/["'`$(){}]/g, " ").split(/[\s;|&<>]+/).filter(Boolean);
+    const isBlocked = (p) => words(p).some((w) => w.split(/[\/\0]/).some((seg) => blocked.has(seg)));
     // Live governance service: routes mutate these sets (persisted via store).
     ctx.provide("policies", {
       blocked, guarded, blockedCommands: () => [...compiled.keys()],
@@ -49,16 +52,18 @@ export const plugin = {
       }
       return null;
     };
+    const *stringArgs = function* (v, depth = 0) {
+      if (depth > 4) return;
+      if (typeof v === "string") yield v;
+      else if (Array.isArray(v)) for (const x of v) yield* stringArgs(x, depth + 1);
+      else if (v && typeof v === "object") for (const x of Object.values(v)) yield* stringArgs(x, depth + 1);
+    };
     ctx.on("tools/pre-execute", async (req, next) => {
-      // Argument-level governance: path segments first, then command patterns.
-      for (const v of Object.values(req.args ?? {})) {
-        if (typeof v === "string" && isBlocked(v)) { req.denied = `path in sensitive directory: ${v}`; req.policy = "path-policy"; return next(req); }
+      // Argument-level governance (recursive): path segments, then command patterns.
+      for (const v of stringArgs(req.args ?? {})) {
+        if (isBlocked(v)) { req.denied = `path in sensitive directory: ${v}`; req.policy = "path-policy"; return next(req); }
       }
-      // Command patterns apply to ANY string argument (command, file content,
-      // agent briefs...) — hiding a blocked command inside write_file content
-      // and running it later hits the same wall.
-      for (const v of Object.values(req.args ?? {})) {
-        if (typeof v !== "string") continue;
+      for (const v of stringArgs(req.args ?? {})) {
         const pat = matchBlockedCommand(v);
         if (pat) { req.denied = `argument matches blocked pattern: ${pat}`; req.policy = "path-policy"; return next(req); }
       }
