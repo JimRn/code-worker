@@ -74,7 +74,7 @@ export class AgentLoop {
         // calls forever). Guarantee in finally, even if execution itself throws.
         const done = new Set();
         try {
-          const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding });
+          const results = await ctx.require("tools").execute(result.toolCalls, { maxBytes: this.toolResultMaxBytes, sessionId: session.id, session, projectId: session.binding?.projectId, binding: session.binding, signal: effectiveSignal });
           for (const r of results) {
             done.add(r.callId);
             await session.append("tool/result", { callId: r.callId, name: r.name, output: r.output, isError: r.isError ?? false, policy: r.policy });

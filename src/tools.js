@@ -35,7 +35,7 @@ export class ToolRegistry {
       function: { name: t.name, description: t.description, parameters: t.schema ?? { type: "object", properties: {} } },
     }));
   }
-  async execute(calls, { maxBytes = 20000, sessionId, session, projectId, binding } = {}) {
+  async execute(calls, { maxBytes = 20000, sessionId, session, projectId, binding, signal } = {}) {
     const results = [];
     for (const call of calls) {
       const latched = sessionId ? this.latches.get(sessionId) : undefined;
@@ -48,7 +48,8 @@ export class ToolRegistry {
       // Narrow capabilities are injected by the owning plugins via
       // tools/pre-execute (e.g. todo injects req.appendTodo); the registry
       // only assembles the request envelope.
-      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, session };
+      if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+      let req = { name: call.name, args: call.args ?? {}, callId: call.id || `tc-${call.name}-${results.length}`, sessionId, projectId, binding, session, signal };
       req = await this.ctx.waterfall(EV.TOOLS_PRE_EXECUTE, req);
       delete req.session; // listeners may use it; tools never receive the live Session
       if (req.denied) {
@@ -101,6 +102,10 @@ export function installApprovalGuard(ctx, { autoApprove, guarded, timeoutMs = 30
         const timer = setTimeout(() => resolve(false), timeoutMsClamped); // timeout -> deny
         ref.pending.set(req.callId, { resolve: (v) => { clearTimeout(timer); resolve(v); }, req });
         ref.notify?.({ callId: req.callId, name: req.name, args: req.args, sessionId: req.sessionId });
+        const onAbort = () => { // abort: clean pending and deny so the step ends promptly
+          clearTimeout(timer); ref.pending.delete(req.callId); resolve(false);
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
       });
       ref.pending.delete(req.callId);
       if (!decision) { req.denied = `${req.name} denied by user`; req.policy = "guard-approval"; }
