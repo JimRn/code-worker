@@ -284,11 +284,35 @@ async function updateUsage() {
     : `上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`;
 }
 
+const PAGE = 60; // events per history page; deeper history loads on demand
+let replayBuf = [], replayDone = false;
+function renderPage(events) {
+  for (const ev of events) renderEvent(ev);
+}
+function loadOlder() {
+  if (!replayBuf.length) return;
+  const box = $("#messages");
+  const batch = replayBuf.slice(-PAGE);
+  replayBuf = replayBuf.slice(0, -PAGE);
+  // Stash current DOM, render the older batch into an empty box, then splice
+  // the stash back behind it (order preserved).
+  const stash = [...box.childNodes];
+  for (const n of stash) box.removeChild(n);
+  const prevTurn = currentTurn;
+  currentTurn = null;
+  renderPage(batch);
+  for (const n of stash) box.appendChild(n);
+  currentTurn = prevTurn;
+  if (!replayBuf.length) $("#load-older")?.remove();
+  else $("#load-older").textContent = `↑ 加载更早历史（${replayBuf.length} 条）`;
+  box.scrollTop = 0;
+}
 function openStream(id) {
   stream?.close();
   $("#messages").innerHTML = "";
   lastTodoSeq = -1;
   currentTurn = null;
+  replayBuf = []; replayDone = false;
   stream = new EventSource(api(`/sessions/${id}/stream`));
   stream.onopen = () => { $("#conn").textContent = "● 已连接"; $("#conn").style.color = "#3fb950"; };
   stream.onerror = () => {
@@ -298,9 +322,26 @@ function openStream(id) {
     sending = false;
   };
   stream.onmessage = (e) => {
-    const ev = JSON.parse(e.data);
+    let ev;
+    try { ev = JSON.parse(e.data); } catch { return; }
+    // Buffer the backlog, then render the newest page first.
+    if (!replayDone) {
+      if (ev.type === "replay/end") {
+        replayDone = true;
+        const page = replayBuf.slice(-PAGE);
+        replayBuf = replayBuf.slice(0, -PAGE);
+        renderPage(page);
+        if (replayBuf.length) {
+          const btn = document.createElement("button");
+          btn.id = "load-older"; btn.textContent = `↑ 加载更早历史（${replayBuf.length} 条）`;
+          $("#messages").prepend(btn);
+          btn.onclick = loadOlder;
+        }
+      } else replayBuf.push(ev);
+      return;
+    }
     if (ev.type === "turn/start") $("#status").textContent = "运行中…";
-    if (ev.type === "turn/end") $("#status").textContent = "";
+    if (ev.type === "turn/end" || ev.type === "turn/cancelled" || ev.type === "turn/failed") $("#status").textContent = "";
     renderEvent(ev);
   };
 }

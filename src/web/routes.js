@@ -348,6 +348,7 @@ export function registerSessionRoutes(app) {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     res.flushHeaders();
     for (const ev of session.events) res.write(`data: ${JSON.stringify(ev)}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: "replay/end" })}\n\n`); // client paginates history below this sentinel
     const off = session.subscribe((ev) => { try { res.write(`data: ${JSON.stringify(ev)}\n\n`); } catch { /* client gone */ } });
     if (!sseClients.has(session.id)) sseClients.set(session.id, new Set());
     sseClients.get(session.id).add(res);
