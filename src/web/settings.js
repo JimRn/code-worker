@@ -28,11 +28,14 @@ export class SettingsStore {
       model: s.model ?? "",
       reasoningEffort: s.reasoningEffort ?? "",
       contextWindow: s.contextWindow ?? "",
+      priceInput: s.priceInput ?? "",
+      priceOutput: s.priceOutput ?? "",
+      priceCache: s.priceCache ?? "",
       hasApiKey: Boolean(c.apiKey),
     };
   }
   /** Save config; apiKey is written only when a non-empty value is provided. */
-  update({ baseUrl, model, apiKey, reasoningEffort, contextWindow }) {
+  update({ baseUrl, model, apiKey, reasoningEffort, contextWindow, priceInput, priceOutput, priceCache }) {
     if (baseUrl !== undefined) {
       if (baseUrl && !/^https?:\/\//.test(baseUrl)) throw new Error("baseUrl must be an http(s) URL");
       const s = readJson(this.settingsFile, {});
@@ -59,6 +62,15 @@ export class SettingsStore {
       else delete s.reasoningEffort;
       atomicWrite(this.settingsFile, s);
     }
+    for (const [k, v] of [["priceInput", priceInput], ["priceOutput", priceOutput], ["priceCache", priceCache]]) {
+      if (v !== undefined) {
+        const n = v === "" ? undefined : Number(v);
+        if (v !== "" && (!Number.isFinite(n) || n < 0)) throw new Error(`${k} must be a non-negative number (USD per 1M tokens)`);
+        const s2 = readJson(this.settingsFile, {});
+        if (n === undefined) delete s2[k]; else s2[k] = n;
+        atomicWrite(this.settingsFile, s2);
+      }
+    }
     if (apiKey) { // empty = leave stored credential untouched (never echo secrets)
       atomicWrite(this.credsFile, { apiKey }, 0o600);
     }
@@ -75,12 +87,12 @@ export class SettingsStore {
   getApiKey() { return readJson(this.credsFile, {}).apiKey; }
   getConfig() {
     const s = readJson(this.settingsFile, {});
-    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, apiKey: this.getApiKey() };
+    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, priceInput: s.priceInput, priceOutput: s.priceOutput, priceCache: s.priceCache, apiKey: this.getApiKey() };
   }
   /** Model fields for model-config assembly — the single sanctioned path for
    * the stored key (describe()/API reads still never return it). */
   getModelConfig() {
     const s = readJson(this.settingsFile, {});
-    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, apiKey: this.getApiKey() };
+    return { baseUrl: s.baseUrl, model: s.model, reasoningEffort: s.reasoningEffort, contextWindow: s.contextWindow, priceInput: s.priceInput, priceOutput: s.priceOutput, priceCache: s.priceCache, apiKey: this.getApiKey() };
   }
 }

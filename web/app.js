@@ -250,6 +250,7 @@ function renderEvent(ev) {
 // as a checklist card in the transcript at the point the model updated it,
 // so progress is readable inline with the surrounding turns.
 let lastTodoSeq = -1;
+let rateCache = {}; // pricing rates from /api/settings
 function renderTodos(todos, seq) {
   if (seq !== undefined) {
     if (seq <= lastTodoSeq) return; // already replayed
@@ -269,14 +270,17 @@ function renderTodos(todos, seq) {
 
 async function updateUsage() {
   if (!currentId) return;
-  const s = await (await fetch(api(`/sessions/${currentId}`))).json();
+  const [s, st] = await Promise.all([(await (await fetch(api(`/sessions/${currentId}`))).json()), (await fetch(api("/settings"))).json().catch(() => ({}))]);
+  rateCache = st ?? {};
   const u = s.usage ?? {};
   const c = s.context ?? {};
   $("#usage-info").textContent = u.total ? `用量 ${u.total} tokens（${u.prompt}↑/${u.completion}↓）` : "";
-  // Chat footer: token usage + context occupancy (chars/4 estimate, compaction threshold).
+  // Chat footer: token usage + cost (per-1M pricing from settings) + context occupancy.
   const pct = c.window ? Math.round((c.estTokens / c.window) * 100) : 0;
+  const cost = (u.prompt ?? 0) / 1e6 * (rateCache.priceInput || 0) + (u.completion ?? 0) / 1e6 * (rateCache.priceOutput || 0) + (u.cacheRead ?? 0) / 1e6 * (rateCache.priceCache || 0);
+  const costTxt = cost > 0 ? ` · 费用 $${cost.toFixed(cost < 0.01 ? 4 : 2)}` : "";
   $("#session-stats").textContent = u.total
-    ? `Token 用量 ${u.total}（输入 ${u.prompt} · 输出 ${u.completion} · 缓存 ${u.cacheRead ?? 0}） · 上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`
+    ? `Token 用量 ${u.total}（输入 ${u.prompt} · 输出 ${u.completion} · 缓存 ${u.cacheRead ?? 0}）${costTxt} · 上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`
     : `上下文 ~${(c.estTokens ?? 0).toLocaleString()} / ${(c.window ?? 128000).toLocaleString()}（${pct}%）`;
 }
 
@@ -559,6 +563,9 @@ async function loadSettings() {
   $("#set-model").value = s.model || "";
   $("#set-reasoning").value = s.reasoningEffort || "";
   $("#set-context").value = s.contextWindow || "";
+  $("#set-price-input").value = s.priceInput ?? "";
+  $("#set-price-output").value = s.priceOutput ?? "";
+  $("#set-price-cache").value = s.priceCache ?? "";
   $("#set-apikey").value = "";
   $("#set-apikey").placeholder = s.hasApiKey ? "已保存（留空则不修改）" : "sk-...";
   $("#model-info").textContent = s.model ? `模型：${s.model}` : "";
@@ -571,7 +578,7 @@ async function refreshModelPicker(current) {
 }
 
 $("#save-settings").onclick = async () => {
-  const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim(), reasoningEffort: $("#set-reasoning").value, contextWindow: $("#set-context").value.trim() };
+  const body = { baseUrl: $("#set-baseurl").value.trim(), model: $("#set-model").value.trim(), reasoningEffort: $("#set-reasoning").value, contextWindow: $("#set-context").value.trim(), priceInput: $("#set-price-input").value.trim(), priceOutput: $("#set-price-output").value.trim(), priceCache: $("#set-price-cache").value.trim() };
   const key = $("#set-apikey").value.trim();
   if (key) body.apiKey = key;
   const r = await fetch(api("/settings"), { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
