@@ -512,6 +512,23 @@ $("#new-session").onclick = async () => {
 };
 
 let sending = false;
+// Chat history search: filters rendered messages, highlights hits.
+$("#chat-search").addEventListener("input", () => {
+  const q = $("#chat-search").value.trim().toLowerCase();
+  let hits = 0;
+  document.querySelectorAll("#messages .msg").forEach((el) => {
+    const text = el.textContent.toLowerCase();
+    const hit = q && text.includes(q);
+    el.classList.toggle("search-hide", !!q && !hit);
+    el.classList.toggle("search-hit", !!hit);
+    if (hit) hits++;
+  });
+  $("#chat-search-count").textContent = q ? `${hits} 条` : "";
+  if (q) {
+    const first = document.querySelector(".msg.search-hit");
+    first?.scrollIntoView({ block: "nearest" });
+  }
+});
 $("#collapse-side").onclick = () => {
   const sb = $("#sidebar");
   sb.classList.toggle("collapsed");
