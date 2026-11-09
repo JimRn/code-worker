@@ -2,18 +2,23 @@
 
 按 `docs/harness-design-summary.md` / `docs/harness-implementation-blueprint.md` 从 0 搭建的极简版 Cordis Harness：除 `node-pty`、`ws`（仅 terminals 插件与 WebSocket PTY 用）外零依赖（Node >=20 内置），对照原项目设计要点逐项落地。上游 DeepSeek 源码仅供参考，见 `../reference/deepseek-harness/`（只读，不要在此改代码）。
 
+**一切皆插件**：`plugins/<name>/plugin.js` 自动发现，`profiles/personal.json` 的 `plugins` 数组即组合。删掉一行就是下掉对应能力（含 HTTP 路由）。
+
 ## 架构对照
 
 | 原 DSH | 本项目 |
 |---|---|
 | Cordis `ctx` + `inject` + typed events | `src/context.js`：`Context{provide/get/require/on/emit/waterfall/serial/effect/dispose}`，waterfall 必须 `next()` |
-| `core/session` append-only 日志 | `src/session.js`：`SessionStore/Session`，JSONL `session.v1.jsonl`，`deriveMessages()` 投影；Model-visible ⟺ Logged |
-| `core/tools` 注册 + 安全管线 | `src/tools.js`：`ToolRegistry`，`tools/pre-execute→execute→post-execute` waterfall，结果 byte 界 |
-| `llm/llm` 适配器缝 | `src/llm.js`：`LlmService.prepareCall`，Provider `DeepSeekAdapter`（OpenAI 兼容）+ `MockAdapter`（离线） |
-| `core/agent-loop` turn/step | `src/agent-loop.js`：turn/start→pre-step→bind→commit→freeze→tools→step/end→turn/end；失败记 `assistant/attempt` |
-| fs/shell 能力缝（三角色） | `src/fs.js`、`src/shell.js`：Definition/Provider/Consumer 分离；`ctx.fs`/`ctx.shell` + `tool-fs`/`tool-bash`；workspace confinement |
-| guard 审批 | `src/tools.js:installApprovalGuard`：`write_file`/`bash` 经 executor 拒绝（非 schema 过滤） |
-| profile + bundle 组合 | `profiles/personal.json` + `src/plugin-loader.js` 自动发现 `plugins/<name>/plugin.js`；入口 `src/cli.js`（类比 `dsh --profile personal`） |
+| `core/session` append-only 日志 | `src/session.js`：JSONL `session.v1.jsonl`，`deriveMessages()` 投影；Model-visible ⟺ Logged |
+| `core/tools` 注册 + 安全管线 | `src/tools.js`：`ToolRegistry`，`tools/pre-execute→execute→post-execute` waterfall，policy latch |
+| `llm/llm` 适配器缝 | `src/llm.js`：`LlmService.prepareCall`（OpenAI 兼容流式）+ `MockAdapter`（离线） |
+| `core/agent-loop` turn/step | `src/agent-loop.js`：turn/step 驱动、取消（`turn/cancelled`）、tool 配对保证 |
+| fs/shell/terminal 能力缝 | `src/fs.js`、`src/shell.js`、`src/terminal.js`：Definition/Provider/Consumer 分离，workspace 隔离 |
+| compaction | `plugins/compaction` + `src/compaction.js`：prune（免费）+ LLM 摘要（ durable `compaction/summary` 事件） |
+| profile + bundle 组合 | `profiles/personal.json` + `src/plugin-loader.js`；CLI 透传 `--profile` |
+| Todo（对话内渲染） | `plugins/todo`：`todo_write` 全量快照，渲染为对话内任务卡片 |
+| AskUser 结构化提问 | `plugins/ask-user`：`ask_user` 工具挂起等答，Question 卡片提交同轮续跑 |
+| Web Host + Client | `src/web/server.js`（传输）+ `src/web/routes.js`（路由组）+ `web/app.js` |
 
 ## 运行
 
@@ -28,74 +33,86 @@ node src/cli.js --session <id> "继续上次任务"
 
 ```sh
 node src/cli.js --mock --yes "list files in workspace"
-npm test   # node --test，覆盖 waterfall/可逆 effect/端到端日志/confinement/审批
+npm test   # node --test（56 个测试）
 ```
 
 ## 配置
 
-环境变量见 `.env.example`：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`（`DEEPSEEK_*` 作 fallback）、`CW_WORKSPACE`、`CW_AUTO_APPROVE`。CLI 参数：`--mock`（离线）、`--yes`（批准 write/bash）、`--workspace <dir>`、`--session <id>`、`--repl`、`--base-url <url>`、`--model <name>`、`--api-key <key>`。
+环境变量见 `.env.example`（`OPENAI_*`/`DEEPSEEK_*`、工作区、审批、token）。网页「模型设置」里可改 endpoint/key/model/上下文窗口/计价单价，保存即 live 生效。
+
+CLI 参数：`--mock`（离线）、`--yes`（批准 write/bash）、`--workspace <dir>`、`--session <id>`、`--repl`、`--web`、`--port`、`--host`、`--token`（未设且绑非 localhost 时随机生成）。
 
 ## 扩展（按蓝图）
 
-- 新插件：新建 `plugins/<name>/plugin.js`（导出 `{name, deps, configSchema?, apply(ctx, env)}`），在 `profiles/personal.json` 的 `plugins` 数组加一行；`src/plugin-loader.js` 自动发现，不改任何核心文件。插件配置放 `config.plugins.<name>`，`profile.js` 按 `configSchema` 校验（未知 key 直接报错）；功能事件（如 `compaction/summary`）由插件 `store.registerEventType()` 注册，核心只认自己的事件。
-- 服务能力面：每个 ctx 服务只暴露 `src/service-definitions.js` 声明的成员（`Context.provide` 自动包一层只读视图），换 Provider 不会泄漏内部字段。
-- Waterfall 优先级：`ctx.on(event, fn, "waterfall", {priority})`，高优先级先跑（审批守卫 20 > agent 白名单 10 > 普通 0），改 profile 顺序不再静默改执法语义。
-- 缓存/作用域按实例：`FileCache` 是 ctx 服务（`plugins/file-cache`），`LocalFs`/`LocalShell` 各持自己的 `AsyncLocalStorage`，同进程多 boot 不串扰。
-- 新工具：`ctx.tools.register({name,description,schema,execute})`，后端经 `ctx.fs`/`ctx.shell` 缝。
-- 拦截：`ctx.on("agent/pre-step"|"tools/pre-execute", fn, "waterfall")`（必须 `next()`）。
-- 新 Provider：`ctx.get("llm").registerAdapter(name, adapter)`，loop 不变。
-- 会话：`.code-worker/sessions/<id>/session.v1.jsonl` 即完整可重放日志。
+- 新插件：`plugins/<name>/plugin.js`（导出 `{name, deps, provides?, serviceMethods?, configSchema?, apply}`），在 `profiles/personal.json` 加一行。
+- 新工具：`ctx.tools.register({name, description, schema, execute})`，后端经 `ctx.fs`/`ctx.shell` 缝。
+- 拦截：`ctx.on("agent/pre-step"|"tools/pre-execute", fn, "waterfall", {priority})`（必须 `next()`）。
+- 新 LLM Provider：`ctx.get("llm").registerAdapter(name, adapter)`，loop 不变。
+- 会话就是 `.code-worker/<id>/session.v1.jsonl`——即完整可重放日志。
 
-## 已知局限
+## Web 界面
 
-已支持流式模型输出（`assistant/chunk` live-only）和两段 compaction（prune + LLM 摘要，`plugins/compaction`）。尚未做：子代理/Web 检索/SQLite 检索；`bash` 在 workspace 目录执行本地 shell（个人使用，默认需 `--yes`）。
-
-## Web 界面（参考 DeepSeek Host + Client 结构）
-
-DeepSeek Web = Host（Node 服务静态页 + RPC）+ Client（浏览器按 session 事件渲染）。本项目等价实现：
+DeepSeek Web = Host（静态页 + RPC）+ Client（浏览器按 session 事件渲染）。本项目等价实现：
 
 | DeepSeek | code-worker |
 |---|---|
-| `host/frontend-static` | `src/web/server.js` 静态服务 `web/` |
-| `api/session-controller` RPC | `POST/GET /api/sessions[/:id][/turn]` |
-| `session/event` 实时流 | `GET /api/sessions/:id/stream`（SSE：先重放历史再推 live 事件；`Session.append` 内置 `subscribe` 广播） |
+| `host/frontend-static` | `src/web/server.js` + `web/` |
+| `api/session-controller` RPC | `/api/sessions[/:id][/turn][/cancel][/compact][/export]` |
+| `session/event` 实时流 | `GET /api/sessions/:id/stream`（SSE：先回放历史（单次合并写）再推 live 事件） |
 | 浏览器 shell 按事件渲染 | `web/app.js`（EventSource 渲染 user/assistant/tool 结果） |
 
 ```sh
 node src/cli.js --web --mock --port 3100        # 离线演示
-node src/cli.js --web --port 3000               # 真实 OpenAI-compatible 端点（.env 配置）
-# 浏览器打开 http://localhost:3000，侧栏管理会话，勾选“批准写文件/命令”后发送任务
+node src/cli.js --web --port 3000               # 真实端点（.env 配置）
+# 浏览器打开 http://localhost:3000，侧栏管理会话并挑选权限
 ```
 
-审批切换：Web 的 approve 开关与 CLI 的 `--yes` 共享同一可变 approval ref，`tools/pre-execute` 每次执行前读取。
+页面结构：**对话 / 轨迹 / 终端 / 文件 / 环境变量**；左下 composer 栏显示 Token 用量、费用、上下文用量；左侧栏可折叠。轨迹时间线最新在前，详情页含「监管」页签。
 
-### 局域网访问
+聊天能力：拖入/粘贴图片发大模型（Vision）、搜索历史、停止当前任务（■ 停止）、点击文件路径直达预览弹窗（md 渲染 / pdf 内嵌 / xlsx/docx/pptx 转换 / 下载 / 导出为 PDF）。
 
-默认绑定 `0.0.0.0`（所有网卡），启动时打印本机 + 局域网地址（如 `http://192.168.x.x:3000`），同网段设备浏览器直连即可：
+审批：发送时选「完全权限 / 需要审批 / 逐次审批」；审批卡片在对话内确认，监管 Block 带 policy 名。
 
-```sh
-node src/cli.js --web --port 3000                 # 局域网可达（可信内网）
-node src/cli.js --web --token mysecret            # 推荐：开启 token 鉴权
-node src/cli.js --web --host 127.0.0.1            # 仅本机
-```
+## Policy（监管）
 
-- Token：`--token` 或环境变量 `CW_TOKEN`；带 token 的访问 URL 形如 `http://192.168.x.x:3000/?token=mysecret`，浏览器会存入 localStorage，后续 API 请求自动携带（`?token=` / `x-cw-token` / `Authorization: Bearer` 三选一）。未带 token 请求 `/api/*` 返回 401。
-- 注意：服务直接暴露文件读写/命令执行能力（受审批开关控制），仅在可信局域网使用；不要做端口转发到公网。防火墙需放行对应端口（如 `ufw allow 3000`）。
+`🛡 Policy 配置`（侧栏）弹框编辑全局策略，保存即生效并落 `policies.json`：
+
+| 规则 | 效果 |
+|---|---|
+| 敏感目录（blockedDirs） | 工具参数任何地方都不能出现 `.ssh` 等段 |
+| 需审批（guardedTools） | write/bash/terminal 等工具走审批；terminal_* **不可关**（always guard） |
+| 禁止命令（blockedCommands，正则） | 任意工具参数命中即 Block（含 write_file 内容、bash 脚本文件） |
+
+被 Block 后本轮 latch 生效：换工具/改写法一样被拒，下一条用户消息才清。
 
 ## 上下文管理（compaction）
 
-照 DeepSeek `compaction-tool-result-pruner` + `compaction-basic`：
-- **Prune**（每步自动、无模型成本）：超过 `compaction.pruneBytes` 的旧工具结果截断为头尾 + `[pruned]`，保留最近 `keepRecent` 条原文。
-- **Summarize**：估算上下文（字符数）超过 `compaction.maxContextChars`（默认 60000）时，把旧轮次用 LLM 摘要成一条耐久 `compaction/summary` 事件；`deriveMessages()` 投影只保留摘要 + 其后事件（摘要本身已落日志，满足 model-visible ⟺ logged）。
-- 手动触发：Web `POST /api/sessions/:id/compact`，或 REPL 输入 `/compact`。
+- **Prune**（每步自动、无模型成本）：旧工具结果超限截断，保留最近 `keepRecent` 条。
+- **Summarize**：上下文估算超窗口时 LLM 摘要成耐久 `compaction/summary` 事件；投影保留摘要 + 其后事件（满足 model-visible ⟺ logged）。
+- 手动触发：Web `POST /api/sessions/:id/compact`，或 REPL `/compact`。
 
-## 安全边界说明（review 加固）
+## 安全边界
 
-- `fs` 缝：`.ssh/.aws/.gnupg/.dsh` 在任何 workspace 下均不可读/写（`LocalFs.resolve` 层拦截）；workspace 切换另有 allowlist（启动 root / home / tmp 子树，realpath 后校验）。
-- `bash` 工具：命令文本层无法可靠拦截敏感路径访问，依赖审批门（`--yes` / Web 批准 / 逐次审批）+ 仅可信 LAN 使用。
-- `settings/test` 只打已配置 host；token 只走 header/query bootstrap，CLI 打印用占位符。
+- `fs` 缝：工作区隔离 + 敏感目录拦截（policy 插件提供集合）；workspace 切换 allowlist
+- `bash`/终端：审批门 + 仅可信 LAN，不要端口转发到公网；token 默认生成（`CW_TOKEN` 固定它）
+- API key write-only（GET 只回 `hasApiKey`）；project env secrets（见下）永不进日志/提示词
 
-## 已知上限（对照 DeepSeek 架构）
+## 项目环境变量
 
-- 插件已目录化（`plugins/<name>/plugin.js` + loader 自动发现），但尚未达到 DSH 的外部插件 patch 分发模型（插件仍在仓库内，未支持独立发布/版本）；
-- `binding.js` 的校验与 `file-cache.js` 的 mtime 缓存是直接 import 的 util 层，未走 ctx 服务键（访问路径已知）。
+侧栏「环境变量」页签（文件后面）：按 project 存，**同 project 所有会话/Agent 共享**。
+明文进 prompt 并在设置里可见；勾选「密码类型」的存为 `.env.secrets.json`（0600），列表只显示越权提示（🔒），值不回 API、不进日志；shell/终端执行时并入子进程 env。
+
+## 安全/工程不变量
+
+1. Model-visible ⟺ Logged（日志即事实源）
+2. 插件只经 `ctx` 能力视图交换服务，`ctx.raw()` 仅 providers-only
+3. 可逆注册：`ctx.effect` 在 `dispose` 回滚；terminal PTY 由插件清理
+4. 发送/取消：取消即时生效（AbortSignal 全链路），Stop 按钮
+5. 分页回放：SSE 哨兵 `replay/end` 后前端只渲染最新一页，点按钮往前翻
+
+## 已知局限
+
+- 无子代理 / Web 检索 / SQLite 检索
+- `bash`/terminal 直跑本地 shell（个人使用，默认需审批；无沙箱）
+- Xterm.js 由 CDN 加载（离线 LAN 需联网）
+- 插件不算外部 patch 分发（仓库内插件，无独立发布/版本）
