@@ -147,8 +147,16 @@ export class Session {
     this.events = [];
     this.binding = existsSync(join(dir, "meta.json")) ? JSON.parse(readFileSync(join(dir, "meta.json"), "utf8")) : {};
     if (existsSync(this.file)) {
-      this.events = readFileSync(this.file, "utf8").split("\n").filter(Boolean)
-        .map((l) => JSON.parse(l));
+      // Tolerate a torn trailing line (kill -9 mid-append): skip + warn,
+      // never make the whole session unopenable.
+      this.events = [];
+      let idx = 0;
+      for (const l of readFileSync(this.file, "utf8").split("\n")) {
+        if (!l.trim()) { idx++; continue; }
+        try { this.events.push(JSON.parse(l)); }
+        catch (err) { console.warn(`[session] dropping corrupt line ${idx} in ${this.file}: ${err.message}`); }
+        idx++;
+      }
     }
   }
   /** Live-only frame (e.g. assistant stream chunk): broadcast, never persisted/replayed. */
@@ -167,8 +175,8 @@ export class Session {
   async append(type, data = {}) {
     if (!this.store.eventTypes.has(type)) throw new Error(`Unknown session event type: ${type} (register it via store.registerEventType)`);
     const ev = { v: SESSION_FORMAT_VERSION, seq: this.events.length, ts: Date.now(), type, data };
+    appendFileSync(this.file, JSON.stringify(ev) + "\n"); // disk first
     this.events.push(ev);
-    appendFileSync(this.file, JSON.stringify(ev) + "\n");
     for (const fn of this.onAppend ?? []) fn(ev);
     return ev;
   }
