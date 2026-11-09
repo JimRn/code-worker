@@ -79,7 +79,8 @@ export function installApprovalGuard(ctx, { autoApprove, guarded, timeoutMs = 30
   // Live source when a policies service exists; otherwise the boot-time list.
   const guardedSet = guarded ?? new Set();
   const live = () => ctx.get("policies")?.guarded;
-  const has = (name) => (live()?.size ? live().has(name) : guardedSet.size ? guardedSet.has(name) : ["write_file", "bash"].includes(name));
+  const ALWAYS = ["write_file", "bash", "terminal_open", "terminal_send", "terminal_kill"];
+  const has = (name) => ALWAYS.includes(name) || (live()?.has(name) ?? guardedSet.has(name));
   const ref = typeof autoApprove === "object" ? autoApprove : { current: autoApprove };
   ref.pending ??= new Map();
   ref.bySession ??= new Map(); // sessionId -> {current, mode}; Web turns are session-scoped
