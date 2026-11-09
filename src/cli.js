@@ -70,7 +70,13 @@ if (has("--web")) {
   const { startWebServer, lanAddresses } = await import("./web/server.js");
   const port = Number(val("--port") ?? 3000);
   const host = val("--host") ?? "0.0.0.0"; // all interfaces => LAN reachable
-  const token = val("--token") ?? process.env.CW_TOKEN;
+  const { randomBytes } = await import("node:crypto");
+  let token = val("--token") ?? process.env.CW_TOKEN;
+  const listenHost = val("--host") ?? "0.0.0.0";
+  if (!token && !["127.0.0.1", "localhost", "::1"].includes(listenHost)) {
+    token = randomBytes(16).toString("hex");
+    console.error(`[code-worker] generated LAN token (set CW_TOKEN to fix it): ${token}`);
+  }
   const server = await startWebServer({ ctx, store, approval, token }, { port, host });
   const bound = server.address().port;
   console.error(`[code-worker] web (model=${process.env.OPENAI_MODEL ?? process.env.DEEPSEEK_MODEL ?? "default"}${token ? ", token auth ON" : ", no token (LAN trusted only)"}):`);

@@ -125,10 +125,15 @@ export function registerSettingsRoutes(app) {
     let reqHost = "";
     try { reqHost = new URL(baseUrl).host; } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
     if (reqHost !== storedHost) return sendJson(res, 200, { ok: false, error: "test endpoint restricted to the configured host" });
-    const key = body.apiKey || mc.apiKey;
+    // The stored key is only ever used against the configured host above;
+    // an explicit key from the caller may test another host.
+    const key = body.apiKey ?? mc.apiKey;
     if (!key) return sendJson(res, 400, { ok: false, error: "no API key configured" });
+    if (body.apiKey) {
+      try { if (new URL(baseUrl).protocol !== "https:" && new URL(baseUrl).hostname !== "localhost") return sendJson(res, 200, { ok: false, error: "baseUrl must be https (or localhost)" }); } catch { return sendJson(res, 200, { ok: false, error: "invalid baseUrl" }); }
+    }
     try {
-      const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` } });
+      const r = await fetch(`${baseUrl}/models`, { headers: { authorization: `Bearer ${key}` }, redirect: "error" });
       const json = await r.json().catch(() => ({}));
       sendJson(res, 200, { ok: r.ok, status: r.status, models: (json.data?.map?.((m) => m.id) ?? []).slice(0, 20) });
     } catch (err) {
